@@ -2,7 +2,7 @@ var Mode = (function() {
     var self = {}, mode_stack = [];
     self.specialKeys = {
         "<Alt-s>": ["<Alt-s>"],       // hotkey to toggleBlacklist
-        "<Esc>": ["<Esc>"]
+        "<Esc>": ["<Esc>", "<Ctrl-[>"]
     };
 
     self.isSpecialKeyOf = function(specialKey, keyToCheck) {
