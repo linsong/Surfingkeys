@@ -811,12 +811,16 @@ var AddBookmark = (function() {
     };
 
     self.onInput = function() {
-        var query = Omnibar.input.val();
+        var queries = Omnibar.input.val().split(/\s+/);
         var matches = folders.filter(function(b) {
             if (runtime.conf.caseSensitive)
-              return b.title.indexOf(query) !== -1;
+              return queries.every(function(query) { 
+                return query.length == 0 || b.title.indexOf(query) !== -1; 
+              });
             else
-              return b.title.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+              return queries.every(function(query) { 
+                return query.length == 0 || b.title.toLowerCase().indexOf(query.toLowerCase()) !== -1; 
+              });
         });
         Omnibar.listResults(matches, function(f) {
             return $('<li/>').attr('folder', f.id).html("▷ {0}".format(f.title));
