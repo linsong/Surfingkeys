@@ -62,6 +62,7 @@ gulp.task('build_background', ['clean'], function() {
     ];
     if (buildTarget === "Firefox") {
         background.unshift("firefox_bg.js");
+        gulp.src("firefox_pac.js").pipe(gulp.dest(`dist/${buildTarget}-extension`));
     } else {
         background.unshift("chrome_bg.js");
     }
@@ -129,9 +130,6 @@ gulp.task('copy-js-files', ['copy-es-files'], function() {
         'libs/mermaid.min.js',
         'libs/webfontloader.js'
     ];
-    if (buildTarget === "Firefox") {
-        libs.push('libs/shadydom.min.js');
-    }
     return gulp.src(libs, {base: "."})
         .pipe(gulpif(options.env === 'production', gp_uglify().on('error', gulpUtil.log)))
         .pipe(gulp.dest(`dist/${buildTarget}-extension`));

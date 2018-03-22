@@ -8,7 +8,12 @@ function getDocumentOrigin() {
     // https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
     // Lastly, posting a message to a page at a file: URL currently requires that the targetOrigin argument be "*".
     // file:// cannot be used as a security restriction; this restriction may be modified in the future.
-    return (!document.origin ? "*" : document.origin);
+    // Firefox provides window.origin instead of document.origin.
+    var origin = document.origin ? document.origin : (window.origin ? window.origin : "*");
+    if (origin === "null") {
+        origin = "*";
+    }
+    return origin;
 }
 
 function generateQuickGuid() {
@@ -29,6 +34,15 @@ function getRealEdit(event) {
         }
     }
     return rt;
+}
+
+function toggleQuote() {
+    var elm = getRealEdit(), val = elm.value;
+    if (val[0] === '"') {
+        elm.value = val.substr(1, val.length - 2);
+    } else {
+        elm.value = '"' + val + '"';
+    }
 }
 
 function isEditable(element) {
@@ -60,20 +74,20 @@ function reportIssue(title, description) {
     Front.showPopup(error);
 }
 
-function scrollIntoViewIfNeeded(elm) {
+function scrollIntoViewIfNeeded(elm, ignoreSize) {
     if (elm.scrollIntoViewIfNeeded) {
         elm.scrollIntoViewIfNeeded();
-    } else if (!isElementPartiallyInViewport(elm)) {
+    } else if (!isElementPartiallyInViewport(elm, ignoreSize)) {
         elm.scrollIntoView();
     }
 }
 
-function isElementPartiallyInViewport(el) {
+function isElementPartiallyInViewport(el, ignoreSize) {
     var rect = el.getBoundingClientRect();
     var windowHeight = (window.innerHeight || document.documentElement.clientHeight);
     var windowWidth = (window.innerWidth || document.documentElement.clientWidth);
 
-    return rect.width > 4 && rect.height > 4
+    return (ignoreSize || (rect.width > 4 && rect.height > 4))
         && (rect.top <= windowHeight) && (rect.bottom >= 0)
         && (rect.left <= windowWidth) && (rect.right >= 0);
 }
@@ -101,6 +115,41 @@ function getVisibleElements(filter) {
     return visibleElements;
 }
 
+function actionWithSelectionPreserved(cb) {
+    var selection = document.getSelection();
+    var pos = [selection.type, selection.anchorNode, selection.anchorOffset, selection.focusNode, selection.focusOffset];
+
+    var dt = document.scrollingElement.scrollTop;
+
+    cb(selection);
+
+    document.scrollingElement.scrollTop = dt;
+
+    if (pos[0] === "None") {
+        selection.empty();
+    } else if (pos[0] === "Caret") {
+        selection.setPosition(pos[3], pos[4]);
+    } else if (pos[0] === "Range") {
+        selection.setPosition(pos[1], pos[2]);
+        selection.extend(pos[3], pos[4]);
+    }
+}
+
+function filterAncestors(elements) {
+    var tmp = [];
+    if (elements.length > 0) {
+        // filter out element which has its children covered
+        tmp = [elements[elements.length - 1]];
+        for (var i = elements.length - 2; i >= 0; i--) {
+            if (!elements[i].contains(tmp[0])) {
+                tmp.unshift(elements[i]);
+            }
+        }
+    }
+
+    return tmp;
+}
+
 function filterOverlapElements(elements) {
     // filter out tiny elements
     elements = elements.filter(function(e) {
@@ -110,7 +159,7 @@ function filterOverlapElements(elements) {
         } else if (["input", "textarea", "select"].indexOf(e.localName) !== -1) {
             return true;
         } else {
-            var el = document.elementFromPoint(be.left + be.width / 2, be.top + be.height / 2);
+            var el = document.elementFromPoint(be.left + be.width / 2, be.top + 3);
             return !el || el.shadowRoot && el.childElementCount === 0 || el.contains(e);
         }
     });
@@ -128,15 +177,7 @@ function filterOverlapElements(elements) {
         return flag;
     });
 
-    // filter out element which has its children covered
-    var tmp = [elements[elements.length - 1]];
-    for (var i = elements.length - 2; i >= 0; i--) {
-        if (!elements[i].contains(tmp[0])) {
-            tmp.unshift(elements[i]);
-        }
-    }
-
-    return tmp;
+    return filterAncestors(elements);
 }
 
 function getTextNodes(root, pattern, flag) {
@@ -206,3 +247,98 @@ String.prototype.format = function() {
 RegExp.prototype.toJSON = function() {
     return {source: this.source, flags: this.flags};
 };
+
+function _parseAnnotation(ag) {
+    var annotations = ag.annotation.match(/#(\d+)(.*)/);
+    if (annotations !== null) {
+        ag.feature_group = parseInt(annotations[1]);
+        ag.annotation = annotations[2];
+    }
+    return ag;
+}
+
+function _map(mode, nks, oks) {
+    oks = KeyboardUtils.encodeKeystroke(oks);
+    var old_map = mode.mappings.find(oks);
+    if (old_map) {
+        nks = KeyboardUtils.encodeKeystroke(nks);
+        mode.mappings.remove(nks);
+        // meta.word need to be new
+        var meta = $.extend({}, old_map.meta);
+        mode.mappings.add(nks, meta);
+    }
+    return old_map;
+}
+
+function RUNTIME(action, args) {
+    var actionsRepeatBackground = ['closeTab', 'nextTab', 'previousTab', 'moveTab', 'reloadTab', 'setZoom', 'closeTabLeft','closeTabRight', 'focusTabByIndex'];
+    (args = args || {}).action = action;
+    if (actionsRepeatBackground.indexOf(action) !== -1) {
+        // if the action can only be repeated in background, pass repeats to background with args,
+        // and set RUNTIME.repeats 1, so that it won't be repeated in foreground's _handleMapKey
+        args.repeats = RUNTIME.repeats;
+        RUNTIME.repeats = 1;
+    }
+    try {
+        chrome.runtime.sendMessage(args);
+    } catch (e) {
+        Front.showPopup('[runtime exception] ' + e);
+    }
+}
+
+function getAnnotations(mappings) {
+    return mappings.getWords().map(function(w) {
+        var meta = mappings.find(w).meta;
+        return {
+            word: w,
+            feature_group: meta.feature_group,
+            annotation: meta.annotation
+        };
+    }).filter(function(m) {
+        return m.annotation && m.annotation.length > 0;
+    });
+}
+
+function constructSearchURL(se, word) {
+    if (se.indexOf("{0}") > 0) {
+        return se.format(word);
+    } else {
+        return se + word;
+    }
+}
+
+function tabOpenLink(str, simultaneousness) {
+    simultaneousness = simultaneousness || 5;
+
+    var urls;
+    if (str.constructor.name === "Array") {
+        urls = str;
+    } else if (str instanceof $) {
+        urls = str.map(function() {
+            return this.href;
+        }).toArray();
+    } else {
+        urls = str.trim().split('\n');
+    }
+
+    urls = urls.map(function(u) {
+        return u.trim();
+    }).filter(function(u) {
+        return u.length > 0;
+    });
+    // open the first batch links immediately
+    urls.slice(0, simultaneousness).forEach(function(url) {
+        RUNTIME("openLink", {
+            tab: {
+                tabbed: true
+            },
+            url: url
+        });
+    });
+    // queue the left for later opening when there is one tab closed.
+    if (urls.length > simultaneousness) {
+        RUNTIME("queueURLs", {
+            urls: urls.slice(simultaneousness)
+        });
+    }
+}

@@ -20,18 +20,11 @@
 //
 // ************************* WARNING *************************
 
-function toggleQuote() {
-    var elm = getRealEdit(), val = elm.value;
-    if (val[0] === '"') {
-        elm.value = val.substr(1, val.length - 2);
-    } else {
-        elm.value = '"' + val + '"';
-    }
-}
 imapkey("<Ctrl-'>", '#15Toggle quotes in an input element', toggleQuote);
-cmapkey("<Ctrl-'>", '#15Toggle quotes in an input element', toggleQuote);
 imapkey('<Ctrl-i>', '#15Open vim editor for current input', function() {
     var element = getRealEdit();
+    element.blur();
+    Insert.exit();
     Front.showEditor(element);
 });
 function toggleProxySite(host) {
@@ -46,28 +39,6 @@ mapkey('cp', '#13Toggle proxy for current site', function() {
     if (host && host.length) {
         toggleProxySite(host);
     }
-});
-command('setProxy', 'setProxy <proxy_host>:<proxy_port> [proxy_type|PROXY]', function(args) {
-    // args is an array of arguments
-    var proxy = ((args.length > 1) ? args[1] : "PROXY") + " " + args[0];
-    RUNTIME('updateProxy', {
-        proxy: proxy
-    });
-    return true;
-});
-command('setProxyMode', 'setProxyMode <always|direct|byhost|system|clear>', function(args) {
-    runtime.command({
-        action: "updateProxy",
-        mode: args[0]
-    }, function(rs) {
-        if (["byhost", "always"].indexOf(rs.proxyMode) !== -1) {
-            Front.showBanner("{0}: {1}".format(rs.proxyMode, rs.proxy), 3000);
-        } else {
-            Front.showBanner(rs.proxyMode, 3000);
-        }
-    });
-    // return true to close Omnibar for Commands, false to keep Omnibar on
-    return true;
 });
 mapkey(';cp', '#13Copy proxy info', function() {
     runtime.command({
@@ -94,57 +65,6 @@ map('spb', ':setProxyMode byhost', 0, '#13set proxy mode `byhost`');
 map('spd', ':setProxyMode direct', 0, '#13set proxy mode `direct`');
 map('sps', ':setProxyMode system', 0, '#13set proxy mode `system`');
 map('spc', ':setProxyMode clear', 0, '#13set proxy mode `clear`');
-command('listVoices', 'list tts voices', function() {
-    runtime.command({
-        action: 'getVoices'
-    }, function(response) {
-
-        var voices = response.voices.map(function(s) {
-            return `<tr><td>${s.voiceName}</td><td>${s.lang}</td><td>${s.gender}</td><td>${s.remote}</td></tr>`;
-        });
-        voices.unshift("<tr style='font-weight: bold;'><td>voiceName</td><td>lang</td><td>gender</td><td>remote</td></tr>");
-        Front.showPopup("<table style='width:100%'>{0}</table>".format(voices.join('')));
-
-    });
-});
-command('testVoices', 'testVoices <locale> <text>', function(args) {
-    runtime.command({
-        action: 'getVoices'
-    }, function(response) {
-
-        var voices = response.voices, i = 0;
-        if (args.length > 0) {
-            voices = voices.filter(function(v) {
-                return v.lang.indexOf(args[0]) !== -1;
-            });
-        }
-        var textToRead = "This is to test voice with SurfingKeys";
-        if (args.length > 1) {
-            textToRead = args[1];
-        }
-        var text;
-        for (i = 0; i < voices.length - 1; i++) {
-            text = `${textToRead}, ${voices[i].voiceName} / ${voices[i].lang}.`;
-            readText(text, {
-                enqueue: true,
-                verbose: true,
-                voiceName: voices[i].voiceName
-            });
-        }
-        text = `${textToRead}, ${voices[i].voiceName} / ${voices[i].lang}.`;
-        readText(text, {
-            enqueue: true,
-            verbose: true,
-            voiceName: voices[i].voiceName,
-            onEnd: function() {
-                Front.showPopup("All voices test done.");
-            }
-        });
-    });
-});
-command('stopReading', '#13Stop reading.', function(args) {
-    RUNTIME('stopReading');
-});
 mapkey('gr', '#14Read selected text or text from clipboard', function() {
     Clipboard.read(function(response) {
         readText(window.getSelection().toString() || response.data, {verbose: true});
@@ -168,9 +88,6 @@ mapkey('sfr', '#13show failed web requests of current page', function() {
         }
     });
 });
-command('feedkeys', 'feed mapkeys', function(args) {
-    Normal.feedkeys(args[0]);
-});
 map('g0', ':feedkeys 99E', 0, "#3Go to the first tab");
 map('g$', ':feedkeys 99R', 0, "#3Go to the last tab");
 mapkey('zr', '#3zoom reset', function() {
@@ -189,9 +106,6 @@ mapkey('zo', '#3zoom out', function() {
     });
 });
 
-command('quit', '#5quit chrome', function() {
-    RUNTIME('quit');
-});
 map('ZQ', ':quit');
 mapkey(".", '#0Repeat last action', Normal.repeatLast, {repeatIgnore: true});
 mapkey("sql", '#0Show last action', function() {
@@ -216,27 +130,7 @@ mapkey('T', '#3Choose a tab', function() {
 mapkey('?', '#0Show usage', function() {
     Front.showUsage();
 });
-mapkey('e', '#2Scroll a page up', Normal.scroll.bind(Normal, "pageUp"), {repeatIgnore: true});
 map('u', 'e');
-mapkey('d', '#2Scroll a page down', Normal.scroll.bind(Normal, "pageDown"), {repeatIgnore: true});
-mapkey('j', '#2Scroll down', Normal.scroll.bind(Normal, "down"), {repeatIgnore: true});
-mapkey('k', '#2Scroll up', Normal.scroll.bind(Normal, "up"), {repeatIgnore: true});
-mapkey('h', '#2Scroll left', Normal.scroll.bind(Normal, "left"), {repeatIgnore: true});
-mapkey('l', '#2Scroll right', Normal.scroll.bind(Normal, "right"), {repeatIgnore: true});
-mapkey('gg', '#2Scroll to the top of the page', Normal.scroll.bind(Normal, "top"), {repeatIgnore: true});
-mapkey('G', '#2Scroll to the bottom of the page', Normal.scroll.bind(Normal, "bottom"), {repeatIgnore: true});
-mapkey('0', '#2Scroll all the way to the left', Normal.scroll.bind(Normal, "leftmost"), {repeatIgnore: true});
-mapkey('$', '#2Scroll all the way to the right', Normal.scroll.bind(Normal, "rightmost"), {repeatIgnore: true});
-mapkey('%', '#2Scroll to percentage of current page', Normal.scroll.bind(Normal, "byRatio"), {repeatIgnore: true});
-mapkey('cs', '#2Change scroll target', function() {
-    Normal.changeScrollTarget();
-});
-mapkey('cS', '#2Reset scroll target', function() {
-    Normal.resetScrollTarget();
-});
-mapkey('f', '#1Open a link, press SHIFT to flip hints if they are overlapped.', function() {
-    Hints.create("", Hints.dispatchMouseClick);
-});
 mapkey('af', '#1Open a link in new tab', function() {
     Hints.create("", Hints.dispatchMouseClick, {tabbed: true});
 });
@@ -275,7 +169,25 @@ mapkey('yc', '#7Copy a column of a table', function() {
         Clipboard.write(column);
     });
 });
-mapkey('yq', '#7Copy pre text.', function() {
+mapkey('ymc', '#7Copy multiple columns of a table', function() {
+    var rows = null;
+    Hints.create($("table").find('tr:first').find('>*'), function(element) {
+        var column = $(element).closest('table')
+            .find('tr').find(`>*:nth(${$(element).index()})`)
+            .toArray().map(function(t) {
+                return t.innerText;
+            });
+        if (!rows) {
+            rows = column;
+        } else {
+            column.forEach(function(c, i) {
+                rows[i] += "\t" + c;
+            });
+        }
+        Clipboard.write(rows.join("\n"));
+    }, {multipleHits: true});
+});
+mapkey('yq', '#7Copy pre text', function() {
     Hints.create("pre", function(element) {
         Clipboard.write(element.innerText);
     });
@@ -331,11 +243,8 @@ cmap('<Ctrl-p>', '<Shift-Tab>');
 mapkey('q', '#1Click on an Image or a button', function() {
     Hints.create("img, button", Hints.dispatchMouseClick);
 });
-mapkey('E', '#3Go one tab left', function() {
-    RUNTIME("previousTab");
-});
-mapkey('R', '#3Go one tab right', function() {
-    RUNTIME("nextTab");
+mapkey('<Alt-i>', '#0enter PassThrough mode to temporarily suppress SurfingKeys', function() {
+    Normal.passThrough();
 });
 mapkey('<Alt-p>', '#3pin/unpin current tab', function() {
     RUNTIME("togglePinTab");
@@ -373,6 +282,9 @@ mapkey('t', '#8Open a URL', function() {
 mapkey('go', '#8Open a URL in current tab', function() {
     Front.openOmnibar({type: "URLs", extra: "getAllSites", tabbed: false});
 });
+mapkey('oi', '#8Open incognito window', function() {
+    RUNTIME('openIncognito');
+});
 mapkey('ox', '#8Open recently closed URL', function() {
     Front.openOmnibar({type: "URLs", extra: "getRecentlyClosed"});
 });
@@ -384,11 +296,11 @@ function renderShanbay(res) {
     if (res.data.definition) {
         var tmp = [];
         for (var reg in res.data.pronunciations) {
-            tmp.push('[{0}] {1}'.format(reg, res.data.pronunciations[reg]));
-            tmp.push('<audio src="{0}" controls></audio>'.format(res.data[reg+'_audio']));
+            tmp.push('<div>[{0}] {1}</div>'.format(reg, res.data.pronunciations[reg]));
+            tmp.push('<div><audio src="{0}" controls></audio></div>'.format(res.data[reg+'_audio']));
         }
-        tmp.push(res.data.definition);
-        exp = '<pre>{0}</pre>'.format(tmp.join('\n'));
+        tmp.push('<div>{0}</div>'.format(res.data.definition));
+        exp = '<div>{0}</div>'.format(tmp.join('\n'));
     }
     return exp;
 }
@@ -432,68 +344,22 @@ mapkey('om', '#8Open URL from vim-like marks', function() {
 mapkey(':', '#8Open commands', function() {
     Front.openOmnibar({type: "Commands"});
 });
-command('clearHistory', 'clearHistory <find|cmd|...>', function(args) {
-    runtime.updateHistory(args[0], []);
-});
-command('listSession', 'list session', function() {
-    if (!Front.omnibar.is(":visible")) {
-        Front.openOmnibar({ type: "Commands" });
-    }
-    runtime.command({
-        action: 'getSettings',
-        key: 'sessions'
-    }, function(response) {
-        Omnibar.listResults(Object.keys(response.settings.sessions), function(s) {
-            return $('<li/>').html(s);
-        });
-    });
-});
-command('createSession', 'createSession [name]', function(args) {
-    RUNTIME('createSession', {
-        name: args[0]
-    });
-});
-command('deleteSession', 'deleteSession [name]', function(args) {
-    RUNTIME('deleteSession', {
-        name: args[0]
-    });
-    return true; // to close omnibar after the command executed.
-});
-command('openSession', 'openSession [name]', function(args) {
-    RUNTIME('openSession', {
-        name: args[0]
-    });
-});
-command('listQueueURLs', 'list URLs in queue waiting for open', function(args) {
-    runtime.command({
-        action: 'getQueueURLs'
-    }, function(response) {
-        Omnibar.listResults(response.queueURLs, function(s) {
-            return $('<li/>').html(s);
-        });
-    });
-});
-command('timeStamp', 'print time stamp in human readable format', function(args) {
-    var dt = new Date(parseInt(args[0]));
-    Omnibar.listWords([dt.toString()]);
-});
-mapkey('v', '#9Toggle visual mode', function() {
-    Visual.toggle();
-});
 mapkey('zv', '#9Enter visual mode, and select whole element', function() {
     Visual.toggle("z");
 });
-mapkey('yv', '#9Yank text of an element', function() {
+mapkey('yv', '#7Yank text of an element', function() {
     Visual.toggle("y");
 });
-mapkey('ymv', '#9Yank text of multiple elements', function() {
+mapkey('ymv', '#7Yank text of multiple elements', function() {
     Visual.toggle("ym");
+});
+mapkey('yi', '#7Yank text of an input', function() {
+    Hints.create("input:visible, textarea:visible, select:visible", function(element) {
+        Clipboard.write(element.value);
+    });
 });
 mapkey('V', '#9Restore visual mode', function() {
     Visual.restore();
-});
-mapkey('/', '#9Find in current page', function() {
-    Front.openFinder();
 });
 mapkey('*', '#9Find selected text in current page', function() {
     Visual.star();
@@ -528,12 +394,6 @@ mapkey('>>', '#3Move current tab to right', function() {
     RUNTIME('moveTab', {
         step: 1
     });
-});
-mapkey('n', '#9Next found text', function() {
-    Visual.next(false);
-});
-mapkey('N', '#9Previous found text', function() {
-    Visual.next(true);
 });
 mapkey('w', '#2Switch frames', function() {
     Normal.rotateFrame();
@@ -582,13 +442,29 @@ mapkey('yl', "#7Copy current page's title", function() {
     Clipboard.write(document.title);
 });
 mapkey('yf', '#7Copy form data in JSON on current page', function() {
-    var aa = [];
+    var fd = {};
     $('form').each(function() {
-        var fd = {};
         fd[(this.method || "get") + "::" + this.action] = getFormData(this, "json");
-        aa.push(fd);
     });
-    Clipboard.write(JSON.stringify(aa, null, 4));
+    Clipboard.write(JSON.stringify(fd, null, 4));
+});
+mapkey(';pf', '#7Fill form with data from yf', function() {
+    Hints.create('form', function(element, event) {
+        var formKey = (element.method || "get") + "::" + element.action;
+        Clipboard.read(function(response) {
+            var forms = JSON.parse(response.data.trim());
+            if (forms.hasOwnProperty(formKey)) {
+                var fd = forms[formKey];
+                $(element).find('input[type=text]:visible').toArray().forEach(function(ip) {
+                    if (fd.hasOwnProperty(ip.name)) {
+                        ip.value = fd[ip.name];
+                    }
+                });
+            } else {
+                Front.showBanner("No form data found for your selection from clipboard.");
+            }
+        });
+    });
 });
 mapkey('yg', '#7Capture current page', function() {
     Front.toggleStatus(false);
@@ -600,12 +476,6 @@ mapkey('yg', '#7Capture current page', function() {
             Front.showPopup("<img src='{0}' />".format(response.dataUrl));
         });
     }, 500);
-});
-mapkey('yG', '#7Capture current full page', function() {
-    Normal.captureFullPage();
-});
-mapkey('yS', '#7Capture scrolling element', function() {
-    Normal.captureScrollingElement();
 });
 mapkey('yp', '#7Copy form data for POST on current page', function() {
     var aa = [];
@@ -626,8 +496,8 @@ mapkey('ow', '#8Open Search with alias w', function() {
     Front.openOmnibar({type: "SearchEngine", extra: "w"});
 });
 if (window.navigator.userAgent.indexOf("Firefox") > 0) {
-    mapkey('on', '#3Open Chrome newtab', function() {
-        tabOpenLink("/pages/start.html");
+    mapkey('on', '#3Open Firefox newtab', function() {
+        tabOpenLink("about:blank");
     });
 } else {
     mapkey('on', '#3Open Chrome newtab', function() {

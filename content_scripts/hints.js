@@ -121,10 +121,13 @@ var Hints = (function(mode) {
 
     function dispatchMouseEvent(element, events) {
         events.forEach(function(eventName) {
-            var event = document.createEvent('MouseEvents');
             var mouseButton = shiftKey ? 1 : 0;
-            event.initMouseEvent(eventName, true, true, window, 1, 0, 0, 0, 0, false,
-                false, false, false, mouseButton, null);
+            var event = new MouseEvent(eventName, {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                button: mouseButton
+            });
             element.dispatchEvent(event);
         });
         lastMouseTarget = element;
@@ -247,22 +250,18 @@ var Hints = (function(mode) {
         var bof = self.coordinate();
         $("<style></style>").html("#sk_hints>div{" + _styleForClick + "}").appendTo(holder);
         elements.each(function(i) {
-            var pos = $(this).offset(),
+            var pos = this.getClientRects()[0],
                 z = getZIndex(this);
-            if (pos.top === 0 && pos.left === 0) {
-                // work around for svg elements, https://github.com/jquery/jquery/issues/3182
-                pos = this.getBoundingClientRect();
-            }
-            var left, width = Math.min($(this).width(), window.innerWidth);
+            var left, width = Math.min(pos.width, window.innerWidth);
             if (runtime.conf.hintAlign === "right") {
-                left = pos.left - bof.left + width / 2;
+                left = pos.left - bof.left + width;
             } else if (runtime.conf.hintAlign === "left") {
                 left = pos.left - bof.left;
             } else {
                 left = pos.left - bof.left + width / 2;
             }
-            left = Math.max(left, 0);
-            var link = $('<div/>').css('top', Math.max(pos.top - bof.top, 0)).css('left', left)
+            left = Math.max(left + window.pageXOffset, 0);
+            var link = $('<div/>').css('top', Math.max(pos.top + window.pageYOffset - bof.top, 0)).css('left', left)
                 .css('z-index', z + 9999)
                 .data('z-index', z + 9999)
                 .data('label', hintLabels[i])
@@ -320,15 +319,15 @@ var Hints = (function(mode) {
                         v.push(e);
                     }
                 });
+                elements = $(filterOverlapElements(elements));
             } else {
                 elements = $(document.documentElement).find(cssSelector).filterInvisible().toArray();
+                elements = $(elements);
             }
             if (textFilter.length > 0) {
                 elements = $(elements).filter(function(e) {
                     return this.innerText && this.innerText.indexOf(textFilter) !== -1;
                 });
-            } else {
-                elements = $(filterOverlapElements(elements));
             }
         }
 
@@ -369,12 +368,11 @@ var Hints = (function(mode) {
                 }
             }
         });
+        elements = filterOverlapElements(elements);
         if (textFilter.length > 0) {
             elements = elements.filter(function(e) {
                 return e.innerText && e.innerText.indexOf(textFilter) !== -1;
             });
-        } else {
-            elements = filterOverlapElements(elements);
         }
         elements = elements.map(function(e) {
             var aa = e.childNodes;
@@ -474,6 +472,7 @@ var Hints = (function(mode) {
             $('#sk_hints[mode=input]>div:nth(0)').addClass("activeInput");
             $('#sk_hints[mode=input]>div:nth(0)').data('link').focus();
         } else if (elements.length === 1) {
+            Normal.passFocus(true);
             elements[0].focus();
             Insert.enter(elements[0]);
         }
@@ -491,7 +490,7 @@ var Hints = (function(mode) {
         // save last used attributes, which will be reused if the user scrolls while the hints are still open
         _cssSelector = cssSelector;
         _onHintKey = onHintKey;
-        _lastCreateAttrs = attrs;
+        _lastCreateAttrs = attrs || {};
 
         var start = new Date().getTime();
         var found = createHints(cssSelector, attrs);
@@ -519,6 +518,8 @@ var Hints = (function(mode) {
         self.flashPressedLink(element);
         if (isEditable(element)) {
             self.exit();
+            Normal.passFocus(true);
+            element.focus();
             Insert.enter(element);
         } else {
             if (!behaviours.multipleHits) {
@@ -529,6 +530,13 @@ var Hints = (function(mode) {
                 tabbed = true;
                 active = false;
             }
+
+            if (shiftKey && window.navigator.userAgent.indexOf("Firefox") !== -1) {
+                // mouseButton does not work for firefox in mouse event.
+                tabbed = true;
+                active = true;
+            }
+
             if (tabbed) {
                 RUNTIME("openLink", {
                     tab: {

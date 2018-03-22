@@ -63,7 +63,6 @@ function _filterByTitleOrUrl(urls, query) {
  *  * In omnibar opened with `b:`
  *
  * `Ctrl - Shift - <any letter>` to create vim-like global mark
- * To create new map keys for Omnibar using cmapkey.
  *
  * cmap could be used for Omnibar to change mappings, for example:
  *
@@ -352,6 +351,11 @@ var Omnibar = (function(mode, ui) {
             rotateResult(runtime.conf.omnibarPosition !== "bottom");
         }
     });
+    self.mappings.add(KeyboardUtils.encodeKeystroke("<Ctrl-'>"), {
+        annotation: "Toggle quotes in an input element",
+        feature_group: 8,
+        code: toggleQuote
+    });
 
     self.highlight = function(rxp, str) {
         if (str.substr(0, 11) === "data:image/") {
@@ -619,13 +623,12 @@ var OpenBookmarks = (function() {
         } else {
             currentFolderId = undefined;
             runtime.command({
-                action: 'getBookmarks',
+                action: 'getBookmarks'
             }, self.onResponse);
         }
         self.prompt = fl.prompt;
         Omnibar.promptSpan.html(self.prompt);
         lastFocused = fl.focused;
-        eaten = true;
     }
 
     self.onEnter = function() {
@@ -649,15 +652,29 @@ var OpenBookmarks = (function() {
             }, OpenBookmarks.onResponse);
         } else {
             ret = Omnibar.openFocused.call(self);
+            if (ret) {
+                self.inFolder.push({
+                    prompt: self.prompt,
+                    folderId: currentFolderId,
+                    focused: fi.index()
+                });
+                localStorage.setItem("surfingkeys.lastOpenBookmark", JSON.stringify(self.inFolder));
+            }
         }
         return ret;
     };
 
     self.onOpen = function() {
         Omnibar.listBookmarkFolders(function() {
-            runtime.command({
-                action: 'getBookmarks',
-            }, self.onResponse);
+            var lastBookmarkFolder = localStorage.getItem("surfingkeys.lastOpenBookmark");
+            if (lastBookmarkFolder) {
+                self.inFolder = JSON.parse(lastBookmarkFolder);
+                onFolderUp();
+            } else {
+                runtime.command({
+                    action: 'getBookmarks',
+                }, self.onResponse);
+            }
         });
     };
 
@@ -806,7 +823,7 @@ var AddBookmark = (function() {
         }, function(response) {
             Front.showBanner("Bookmark created at {0}.".format(folderName), 3000);
         });
-        localStorage.setItem("surfingkeys.lastAddedBookmark", Omnibar.input.val()); 
+        localStorage.setItem("surfingkeys.lastAddedBookmark", Omnibar.input.val());
         return true;
     };
 
@@ -1175,20 +1192,45 @@ var Commands = (function() {
         var cmdline = Omnibar.input.val();
         if (cmdline.length) {
             runtime.updateHistory('cmd', cmdline);
-            var args = parseCommand(cmdline);
-            var cmd = args.shift();
-            if (self.items.hasOwnProperty(cmd)) {
-                var code = self.items[cmd].code;
-                ret = code.call(code, args);
-            } else {
-                Front.contentCommand({
-                    action: 'executeScript',
-                    cmdline: cmdline
-                });
-            }
+            self.execute(cmdline);
             Omnibar.input.val('');
         }
         return ret;
+    };
+
+    function parseCommand(cmdline) {
+        var cmdline = cmdline.trim();
+        var tokens = [];
+        var pendingToken = false;
+        var part = '';
+        for (var i = 0; i < cmdline.length; i++) {
+            if (cmdline.charAt(i) === ' ' && !pendingToken) {
+                tokens.push(part);
+                part = '';
+            } else {
+                if (cmdline.charAt(i) === '\"') {
+                    pendingToken = !pendingToken;
+                } else {
+                    part += cmdline.charAt(i);
+                }
+            }
+        }
+        tokens.push(part);
+        return tokens;
+    }
+
+    self.execute = function(cmdline) {
+        var args = parseCommand(cmdline);
+        var cmd = args.shift();
+        if (self.items.hasOwnProperty(cmd)) {
+            var meta = self.items[cmd];
+            meta.code.call(meta.code, args);
+        } else {
+            Front.contentCommand({
+                action: 'executeScript',
+                cmdline: cmdline
+            });
+        }
     };
 
     return self;
@@ -1199,6 +1241,11 @@ var OmniQuery = (function() {
     var self = {
         prompt: 'ǭ'
     };
+
+    function onlyUnique(value, index, self) {
+        return self.indexOf(value) === index;
+    }
+    var _words;
     self.onOpen = function(arg) {
         if (arg) {
             Omnibar.input.val(arg);
@@ -1207,7 +1254,30 @@ var OmniQuery = (function() {
                 query: arg
             });
         }
+        Front.contentCommand({
+            action: 'getPageText'
+        }, function(message) {
+            var splitRegex = /[^a-zA-Z]+/;
+            _words = message.data.toLowerCase().split(splitRegex).filter(onlyUnique);
+        });
     };
+
+    self.onInput = function() {
+        var iw = Omnibar.input.val();
+        var candidates = _words.filter(function(w) {
+            return w.indexOf(iw) !== -1;
+        });
+        if (candidates.length) {
+            Omnibar.listResults(candidates, function(w) {
+                return $('<li/>').text(w);
+            });
+        }
+    };
+
+    self.onTabKey = function() {
+        Omnibar.input.val(Omnibar.resultsDiv.find('li.focused').text());
+    };
+
     self.onEnter = function() {
         Front.contentCommand({
             action: 'omnibar_query_entered',

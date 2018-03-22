@@ -74,21 +74,24 @@ function renderProxy(proxy) {
 }
 
 function renderProxySettings(rs) {
-    if (window.navigator.userAgent.indexOf("Firefox") > 0) {
-        $('#proxyMode').closest('div.section').hide();
-        return;
-    }
     $('#proxyMode>select').val(rs.proxyMode);
     $("#proxy").hide();
     $('#autoproxy_hosts').hide();
     $('#proxyMode span[mode]').hide();
     $(`#proxyMode span[mode=${rs.proxyMode}]`).show();
-    if (rs.proxyMode === "byhost") {
+    if (rs.proxyMode === "byhost" || rs.proxyMode === "always") {
         $("#proxy").show();
         renderProxy(rs.proxy);
 
+        var desc = "For below hosts, above proxy will be used, click ␡ to remove one.";
+        if (rs.proxyMode === "always") {
+            desc = "For below hosts, <b>NO</b> proxy will be used, click ␡ to remove one.";
+        }
+        $('#autoproxy_hosts>h3').html(desc);
+
+        var ih = $('#autoproxy_hosts>input').val();
         var autoproxy_hosts = rs.autoproxy_hosts.sort().map(function(h) {
-            return `<aphost><i role='remove'>␡</i><span>${h}</span></aphost>`;
+            return `<aphost><i role='remove'>␡</i><span class="${h === ih ? 'highlight' : ''}">${h}</span></aphost>`;
         }).join("");
         $('#autoproxy_hosts').show();
         $('#autoproxy_hosts>div').html(autoproxy_hosts);
@@ -103,9 +106,6 @@ function renderProxySettings(rs) {
                 elm.remove();
             });
         });
-    } else if (rs.proxyMode === "always") {
-        $("#proxy").show();
-        renderProxy(rs.proxy);
     }
 }
 
@@ -131,12 +131,20 @@ $('#proxyMode>select').change(function() {
 $('#proxy>select').change(__updateProxy);
 $('#proxy>input').blur(__updateProxy);
 
-$('#autoproxy_hosts>button').click(function() {
+function addAutoProxyHost() {
     _updateProxy({
         host: $('#autoproxy_hosts>input').val(),
         operation: 'add'
     });
+}
+
+$('#autoproxy_hosts>input').keyup(function(e) {
+    if (e.keyCode === 13) {
+        addAutoProxyHost();
+    }
 });
+
+$('#autoproxy_hosts>button').click(addAutoProxyHost);
 
 function showAdvanced(flag) {
     if (flag) {
@@ -198,13 +206,17 @@ $('#advancedToggler').click(function() {
     });
 });
 $('#resetSettings').click(function() {
-    runtime.command({
-        action: "resetSettings"
-    }, function(response) {
-        renderSettings(response.settings);
-        renderKeyMappings(response.settings);
-        Front.showBanner('Settings reset', 300);
-    });
+    if ($(this).text() === "Reset") {
+        $(this).text("WARNING! This will clear all your settings. Click this again to continue.");
+    } else {
+        runtime.command({
+            action: "resetSettings"
+        }, function(response) {
+            renderSettings(response.settings);
+            renderKeyMappings(response.settings);
+            Front.showBanner('Settings reset', 300);
+        });
+    }
 });
 
 $('.infoPointer').click(function() {

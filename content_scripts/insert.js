@@ -4,11 +4,11 @@ var Insert = (function(mode) {
     function moveCusorEOL() {
         var element = getRealEdit();
         if (element.setSelectionRange !== undefined) {
-            if (element.type !== "email") {
+            if (element.type !== "email" && element.type !== "number") {
                 // The input element's type ('email') does not support selection.
                 element.setSelectionRange(element.value.length, element.value.length);
             }
-        } else {
+        } else if (isEditable(element)) {
             // for contenteditable div
             var selection = document.getSelection();
             selection.setPosition(selection.focusNode, selection.focusNode.data.length - 1);
@@ -128,6 +128,7 @@ var Insert = (function(mode) {
     self.mappings.add(KeyboardUtils.encodeKeystroke("<Esc>"), {
         annotation: "Exit insert mode",
         feature_group: 15,
+        keepPropagation: true,
         code: function() {
             getRealEdit().blur();
             self.exit();
@@ -380,16 +381,16 @@ var Insert = (function(mode) {
 
     var _element;
     self.enter = function(elm) {
+        var changed = false;
         if (Mode.stack().indexOf(self) === -1) {
             mode.enter.apply(self, arguments);
-            Normal.passFocus(true);
+            changed = true;
         }
         if (_element !== elm) {
             _element = elm;
-            Normal.passFocus(true);
+            changed = true;
         }
-        elm.focus();
-        if (runtime.conf.cursorAtEndOfInput && elm.nodeName !== 'SELECT') {
+        if (changed && runtime.conf.cursorAtEndOfInput && elm.nodeName !== 'SELECT') {
             moveCusorEOL();
         }
     };

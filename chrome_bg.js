@@ -1,11 +1,3 @@
-function dictFromArray(arry, val) {
-    var dict = {};
-    arry.forEach(function(h) {
-        dict[h] = val;
-    });
-    return dict;
-}
-
 function loadRawSettings(keys, cb, defaultSet) {
     var rawSet = defaultSet || {};
     chrome.storage.local.get(null, function(localSet) {
@@ -51,21 +43,22 @@ function _applyProxySettings(proxyConf) {
                     };
                     function FindProxyForURL(url, host) {
                         var lastPos;
+                        var gates = [pacGlobal.proxy, "DIRECT"];
                         if (pacGlobal.proxyMode === "always") {
-                            return pacGlobal.proxy;
+                            gates = ["DIRECT", pacGlobal.proxy];
                         }
                         var pp = new RegExp(pacGlobal.autoproxy_pattern);
                         do {
                             if (pacGlobal.hosts.hasOwnProperty(host)) {
-                                return pacGlobal.proxy;
+                                return gates[0];
                             }
                             if (pacGlobal.autoproxy_pattern.length && pp.test(host)) {
-                                return pacGlobal.proxy;
+                                return gates[0];
                             }
                             lastPos = host.indexOf('.') + 1;
                             host = host.slice(lastPos);
                         } while (lastPos >= 1);
-                        return 'DIRECT';
+                        return gates[1];
                     }`
             }
         };

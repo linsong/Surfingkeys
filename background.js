@@ -1,3 +1,11 @@
+function dictFromArray(arry, val) {
+    var dict = {};
+    arry.forEach(function(h) {
+        dict[h] = val;
+    });
+    return dict;
+}
+
 function extendObject(target, ss) {
     for (var k in ss) {
         target[k] = ss[k];
@@ -19,6 +27,13 @@ function getSubSettings(set, keys) {
         });
     }
     return subset;
+}
+
+function _save(storage, data, cb) {
+    if (data.localPath) {
+        delete data.snippets;
+    }
+    storage.set(data, cb);
 }
 
 var Gist = (function() {
@@ -159,6 +174,7 @@ var ChromeService = (function() {
         repeatThreshold: 99,
         tabsMRUOrder: true,
         newTabPosition: 'default',
+        showTabIndices: false,
         interceptedErrors: []
     };
 
@@ -318,6 +334,8 @@ var ChromeService = (function() {
                 url: _queueURLs.shift()
             });
         }
+
+        _updateTabIndices();
     }
     chrome.tabs.onRemoved.addListener(removeTab);
     function _setScrollPos_bg(tabId) {
@@ -337,6 +355,11 @@ var ChromeService = (function() {
     });
     chrome.tabs.onCreated.addListener(function(tab) {
         _setScrollPos_bg(tab.id);
+
+        _updateTabIndices();
+    });
+    chrome.tabs.onMoved.addListener(function() {
+        _updateTabIndices();
     });
     chrome.tabs.onActivated.addListener(function(activeInfo) {
         if (tabURLs.hasOwnProperty(activeInfo.tabId) && !historyTabAction && activeInfo.tabId != tabHistory[tabHistory.length - 1]) {
@@ -352,6 +375,14 @@ var ChromeService = (function() {
         tabActivated[activeInfo.tabId] = new Date().getTime();
         historyTabAction = false;
         chromelikeNewTabPosition = 0;
+
+        _updateTabIndices();
+    });
+    chrome.tabs.onDetached.addListener(function() {
+        _updateTabIndices();
+    });
+    chrome.tabs.onAttached.addListener(function() {
+        _updateTabIndices();
     });
     chrome.commands.onCommand.addListener(function(command) {
         switch (command) {
@@ -422,13 +453,6 @@ var ChromeService = (function() {
     };
 
 
-    function _save(storage, data, cb) {
-        if (data.localPath) {
-            delete data.snippets;
-        }
-        storage.set(data, cb);
-    }
-
     function _updateSettings(diffSettings, afterSet) {
         diffSettings.savedAt = new Date().getTime();
         _save(chrome.storage.local, diffSettings, function() {
@@ -442,6 +466,7 @@ var ChromeService = (function() {
             }
         });
     }
+
     function _updateAndPostSettings(diffSettings, afterSet) {
         activePorts.forEach(function(port) {
             port.postMessage({
@@ -450,6 +475,20 @@ var ChromeService = (function() {
             });
         });
         _updateSettings(diffSettings, afterSet);
+    }
+
+    function _updateTabIndices() {
+        if (conf.showTabIndices) {
+            chrome.tabs.query({currentWindow: true}, function(tabs) {
+                tabs.forEach(function(tab) {
+                    chrome.tabs.sendMessage(tab.id, {
+                        subject: "tabIndexChange",
+                        target: 'content_runtime',
+                        index: tab.index + 1
+                    });
+                });
+            });
+        }
     }
 
     function _getDisabled(set, url, regex) {
@@ -612,7 +651,8 @@ var ChromeService = (function() {
         });
     };
     self.togglePinTab = function(message, sender, sendResponse) {
-        chrome.tabs.getSelected(null, function(tab) {
+        chrome.tabs.query({currentWindow: true, active: true}, function(tabs) {
+            var tab = tabs[0];
             return chrome.tabs.update(tab.id, {
                 pinned: !tab.pinned
             });
@@ -845,7 +885,7 @@ var ChromeService = (function() {
     };
     function normalizeURL(url) {
         if (!/^view-source:|^javascript:/.test(url) && /^(?:https?:\/\/)?(?:[^@\/\n]+@)?(?:www\.)?([^:\/\n]+)/im.test(url)) {
-            if (/^[\w-]+?:\/\//i.test(url)) {
+            if (/^[\w-]+?:/i.test(url)) {
                 url = url;
             } else {
                 url = "http://" + url;
@@ -880,7 +920,8 @@ var ChromeService = (function() {
                 url: url,
                 active: message.tab.active,
                 index: newTabPosition,
-                pinned: message.tab.pinned
+                pinned: message.tab.pinned,
+                openerTabId: sender.tab.id
             }, function(tab) {
                 if (message.scrollLeft || message.scrollTop) {
                     tabMessages[tab.id] = {
@@ -1085,6 +1126,9 @@ var ChromeService = (function() {
                 tabURLs[tabId] = {};
             }
             tabURLs[tabId][message.url] = message.title;
+            _response(message, sendResponse, {
+                index: conf.showTabIndices ? sender.tab.index + 1 : 0
+            });
         }
     };
     self.getTabURLs = function(message, sender, sendResponse) {
@@ -1324,5 +1368,10 @@ var ChromeService = (function() {
         chrome.tts.stop();
     };
 
+    self.openIncognito = function(message, sender, sendResponse) {
+        chrome.windows.create({"url": message.url, "incognito": true});
+    };
+
+    chrome.runtime.setUninstallURL("http://brookhong.github.io/2018/01/30/why-did-you-uninstall-surfingkeys.html");
     return self;
 })();

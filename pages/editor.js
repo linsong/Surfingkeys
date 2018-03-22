@@ -188,7 +188,7 @@ var AceEditor = (function(mode, elmId) {
         cm.on('vim-mode-change', function(data) {
             self.mode = data.mode;
         });
-        cm.on('unnamed-register-set', function(data) {
+        cm.on('0-register-set', function(data) {
             var lf = document.activeElement;
             Clipboard.write(data.text);
             lf.focus();
@@ -227,9 +227,12 @@ var AceEditor = (function(mode, elmId) {
         Front.vimMappings.forEach(function(a) {
             vim.map.apply(vim, a);
         });
-        Front.keymapModifier && Front.keymapModifier(self.getKeyboardHandler().defaultKeymap);
+        var dk = self.getKeyboardHandler().defaultKeymap;
+        if (Front.vimKeyMap && Front.vimKeyMap.length) {
+            dk.unshift.apply(dk, Front.vimKeyMap);
+        }
     });
-    self.container.style.background="#f1f1f1";
+    self.container.style.background = "#f1f1f1";
     self.$blockScrolling = Infinity;
 
     self.show = function(message) {

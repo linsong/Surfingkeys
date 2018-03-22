@@ -69,8 +69,7 @@ var Front = (function(mode) {
         });
         if (pointerEvents) {
             window.focus();
-            var input = $('#sk_status').find('input').length ? $('#sk_status').find('input') : Omnibar.input;
-            input.focus();
+            visibleDivs[0].focus();
         }
         top.postMessage({
             action: 'setFrontFrame',
@@ -84,7 +83,7 @@ var Front = (function(mode) {
             Visual[args.action](args.query);
         } else {
             // visual mode for all content windows
-            Front.contentCommand(args);
+            self.contentCommand(args);
         }
     };
 
@@ -94,8 +93,8 @@ var Front = (function(mode) {
     var _usage = $('<div id=sk_usage class=sk_theme>').appendTo('body').hide();
     var _popup = $('<div id=sk_popup class=sk_theme>').appendTo('body').hide();
     var _editor = $('<div id=sk_editor>').appendTo('body').hide();
-    var _tabs = $("<div id=sk_tabs><div class=sk_tabs_fg></div><div class=sk_tabs_bg></div></div>").appendTo('body').hide();
-    var banner = $('<div id=sk_banner>').appendTo('body');
+    var _tabs = $("<div id=sk_tabs></div>").appendTo('body').hide();
+    var banner = $('<div id=sk_banner>').appendTo('body').hide();
     var _bubble = $("<div id=sk_bubble>").html("<div class=sk_bubble_content></div>").appendTo('body').hide();
     $("<div class=sk_arrow>").html("<div></div><div></div>").css('position', 'absolute').css('top', '100%').appendTo(_bubble);
     var keystroke = $('<div id=sk_keystroke class=sk_theme>').appendTo('body').hide();
@@ -119,12 +118,8 @@ var Front = (function(mode) {
         }
         _display = td;
         _display.show();
-        self.flush();
         _display.onShow && _display.onShow(args);
-        if (_editor !== td) {
-            // don't set focus for editor, as it may lead frontend.html hold focus.
-            window.focus();
-        }
+        self.flush();
     }
 
     _actions['highlightElement'] = function(message) {
@@ -138,23 +133,20 @@ var Front = (function(mode) {
     };
 
     _tabs.onShow = function(tabs) {
-        var tabs_fg = _tabs.find('div.sk_tabs_fg');
-        tabs_fg.html("");
+        _tabs.html("");
         _tabs.trie = new Trie();
         var hintLabels = Hints.genLabels(tabs.length);
-        var tabstr = "<div class=sk_tab style='max-width: {0}px'>".format(window.innerWidth - 50);
-        var items = tabs.forEach(function(t, i) {
+        var tabstr = "<div class=sk_tab style='width: 200px'>";
+        tabs.forEach(function(t, i) {
             var tab = $(tabstr);
             _tabs.trie.add(hintLabels[i].toLowerCase(), t);
             tab.html("<div class=sk_tab_hint>{0}</div><div class=sk_tab_wrap><div class=sk_tab_icon><img src='chrome://favicon/{1}'></div><div class=sk_tab_title>{2}</div></div>".format(hintLabels[i], t.url, $.htmlEncode(t.title)));
             tab.data('url', t.url);
-            tabs_fg.append(tab);
+            _tabs.append(tab);
         });
-        tabs_fg.find('div.sk_tab').each(function() {
-            $(this).css('width', $(this).width() + 10);
+        _tabs.find('div.sk_tab').each(function() {
             $(this).append($("<div class=sk_tab_url>{0}</div>".format($(this).data('url'))));
         });
-        _tabs.find('div.sk_tabs_bg').css('width', window.innerWidth).css('height', window.innerHeight);
     };
     _actions['chooseTab'] = function() {
         runtime.command({
@@ -168,7 +160,7 @@ var Front = (function(mode) {
         });
     };
 
-    function buildUsage(cb) {
+    function buildUsage(metas, cb) {
         var feature_groups = [
             'Help',                  // 0
             'Mouse Click',           // 1
@@ -193,21 +185,11 @@ var Front = (function(mode) {
         initL10n(function(locale) {
             help_groups[0].push("<div><span class=kbd-span><kbd>&lt;Alt-s&gt;</kbd></span><span class=annotation>{0}</span></div>".format(locale("Toggle SurfingKeys on current site")));
 
-            [ Normal.mappings,
-                Visual.mappings,
-                Insert.mappings,
-                Omnibar.mappings
-            ].map(function(mappings) {
-                var words = mappings.getWords();
-                for (var i = 0; i < words.length; i++) {
-                    var w = words[i];
-                    var meta = mappings.find(w).meta;
-                    w = KeyboardUtils.decodeKeystroke(w);
-                    if (meta.annotation && meta.annotation.length) {
-                        var item = "<div><span class=kbd-span><kbd>{0}</kbd></span><span class=annotation>{1}</span></div>".format($.htmlEncode(w), locale(meta.annotation));
-                        help_groups[meta.feature_group].push(item);
-                    }
-                }
+            metas = metas.concat(getAnnotations(Omnibar.mappings));
+            metas.forEach(function(meta) {
+                var w = KeyboardUtils.decodeKeystroke(meta.word);
+                var item = "<div><span class=kbd-span><kbd>{0}</kbd></span><span class=annotation>{1}</span></div>".format($.htmlEncode(w), locale(meta.annotation));
+                help_groups[meta.feature_group].push(item);
             });
             help_groups = help_groups.map(function(g, i) {
                 if (g.length) {
@@ -223,16 +205,8 @@ var Front = (function(mode) {
     }
 
     _usage.onShow = function(message) {
-        buildUsage(function(usage) {
+        buildUsage(message.metas, function(usage) {
             _usage.html(usage);
-        });
-    };
-
-    var _userMappings;
-    _actions['addMappingForUsage'] = function(message) {
-        _userMappings = new Trie();
-        message.userMappings.forEach(function(m) {
-            _userMappings.add(m.word, m);
         });
     };
 
@@ -250,14 +224,16 @@ var Front = (function(mode) {
         }
     };
     _actions['executeCommand'] = function (message) {
-        var args = parseCommand(message.cmdline);
-        var cmd = args.shift();
-        if (Commands.items.hasOwnProperty(cmd)) {
-            var meta = Commands.items[cmd];
-            meta.code.call(meta.code, args);
-        } else {
-            self.showPopup("No such command!");
-        }
+        Commands.execute(message.cmdline);
+    };
+    _actions['addCMap'] = function (message) {
+        _map(Omnibar, message.new_keystroke, message.old_keystroke);
+    };
+    _actions['addVimMap'] = function (message) {
+        self.vimMappings.push([message.lhs, message.rhs, message.ctx]);
+    };
+    _actions['addVimKeyMap'] = function (message) {
+        self.vimKeyMap = message.vimKeyMap;
     };
     _actions['addSearchAlias'] = function (message) {
         SearchEngine.aliases[message.alias] = {
@@ -272,7 +248,7 @@ var Front = (function(mode) {
     _actions['getUsage'] = function (message) {
         // send response in callback from buildUsage
         delete message.ack;
-        buildUsage(function(usage) {
+        buildUsage(message.metas, function(usage) {
             top.postMessage({
                 data: usage,
                 action: message.action + "Ack",
@@ -329,13 +305,14 @@ var Front = (function(mode) {
         Find.open();
     };
     self.openFinder = _actions['openFinder'];
-    self.showBanner = function(content, linger_time) {
-        banner.removeClass("slideInBanner");
+    self.showBanner = function (content, linger_time) {
+        banner.removeClass("slideInBanner").show();
         banner.html($.htmlEncode(content));
         self.flush();
 
-        banner.addClass("slideInBanner").one('animationend', function() {
-            banner.removeClass("slideInBanner");
+        banner.addClass("slideInBanner").one('animationend', function () {
+            banner.removeClass("slideInBanner").hide();
+            self.flush();
         });
     };
     _actions['showBanner'] = function(message) {
@@ -377,8 +354,14 @@ var Front = (function(mode) {
     };
     self.hideBubble = _actions['hideBubble'];
 
+    _actions['visualUpdatedForFirefox'] = function(message) {
+        Front.statusBar.find('input').focus();
+    };
+
     _actions['showStatus'] = function(message) {
-        self.showStatus(message.position, message.content, message.duration);
+        if (Mode.stack()[0] !== Find) {
+            self.showStatus(message.position, message.content, message.duration);
+        }
     };
     self.showStatus = function(position, content, duration) {
         StatusBar.show(position, content, duration);
@@ -395,7 +378,7 @@ var Front = (function(mode) {
         self.toggleStatus(message.visible);
     };
 
-    var _key = "", _pendingHint;
+    var _pendingHint;
     function clearPendingHint() {
         if (_pendingHint) {
             clearTimeout(_pendingHint);
@@ -403,7 +386,6 @@ var Front = (function(mode) {
         }
     }
     _actions['hideKeystroke'] = function() {
-        _key = "";
         if (keystroke.is(":visible")) {
             var outClass = keystroke.hasClass("expandRichHints") ? "collapseRichHints" : "slideOutRight";
             keystroke.removeClass("expandRichHints").addClass(outClass).one('animationend', function() {
@@ -421,26 +403,14 @@ var Front = (function(mode) {
         annotation: "Yank a word(w) or line(l) or sentence(s) or paragraph(p)",
         feature_group: 9
     });
-    function getMetas(mapping, key, out) {
-        var root = mapping.find(key);
-        if (root) {
-            root.getMetas(function(m) {
-                return true;
-            }).forEach(function(m) {
-                out[m.word] = m;
-            });
-        }
-    }
-    function showRichHints(mode) {
+    function showRichHints(keyHints) {
         initL10n(function (locale) {
-            var words = _key;
-            var cc = {};
-            getMetas(window[mode].mappings, _key, cc);
-            getMetas(_userMappings, _key, cc);
+            var words = keyHints.accumulated;
+            var cc = keyHints.candidates;
             words = Object.keys(cc).sort().map(function (w) {
                 var meta = cc[w];
                 if (meta.annotation) {
-                    return "<div><span class=kbd-span><kbd>{0}<span class=candidates>{1}</span></kbd></span><span class=annotation>{2}</span></div>".format($.htmlEncode(KeyboardUtils.decodeKeystroke(_key)), w.substr(_key.length), locale(meta.annotation));
+                    return "<div><span class=kbd-span><kbd>{0}<span class=candidates>{1}</span></kbd></span><span class=annotation>{2}</span></div>".format($.htmlEncode(KeyboardUtils.decodeKeystroke(keyHints.accumulated)), w.substr(keyHints.accumulated.length), locale(meta.annotation));
                 } else {
                     return "";
                 }
@@ -453,25 +423,20 @@ var Front = (function(mode) {
         });
     }
     _actions['showKeystroke'] = function (message) {
-        var key = message.key,
-            mode = message.mode;
-
-        _key += key;
-
         if (keystroke.is(":visible") && keystroke.hasClass("expandRichHints")) {
-            showRichHints(mode);
+            showRichHints(message.keyHints);
         } else {
             clearPendingHint();
             keystroke.show();
             self.flush();
-            var keys = keystroke.html() + $.htmlEncode(KeyboardUtils.decodeKeystroke(key));
+            var keys = keystroke.html() + $.htmlEncode(KeyboardUtils.decodeKeystroke(message.keyHints.key));
             keystroke.html(keys);
 
             keystroke.removeClass("slideInRight slideOutRight collapseRichHints").addClass("slideInRight simpleHint");
 
             if (runtime.conf.richHintsForKeystroke > 0 && runtime.conf.richHintsForKeystroke < 10000) {
                 _pendingHint = setTimeout(function() {
-                    showRichHints(mode);
+                    showRichHints(message.keyHints);
                 }, runtime.conf.richHintsForKeystroke);
             }
         }
@@ -480,7 +445,6 @@ var Front = (function(mode) {
     };
 
     _actions['initFrontend'] = function(message) {
-        document.dispatchEvent(new CustomEvent('surfingkeys:frontendReady'));
         topOrigin = message.origin;
         return new Date().getTime();
     };

@@ -27,7 +27,8 @@ if (window === top) {
     _actions['initFrontendAck'] = function(response) {
         if (!_initialized) {
             _initialized = true;
-            document.dispatchEvent(new CustomEvent('surfingkeys:frontendReady'));
+            Front.resolve(window.location.href);
+            Front.resolve = null;
         }
     };
     _actions['setFrontFrame'] = function(response) {
@@ -65,34 +66,34 @@ if (window === top) {
         if (_message.commandToFrontend || _message.responseToFrontend) {
             // forward message to frontend
             ifr[0].contentWindow.postMessage(_message, frontEndURL);
-            if (_message.commandToFrontend) {
-                if (_message.origin && !_message.automatic) {
-                    // if the message is auto triggered rather than by user
-                    // we won't change activeContent here.
-                    if (!activeContent || activeContent.window !== event.source) {
+            if (_message.commandToFrontend && event.source && _message.action === 'showStatus') {
+                if (!activeContent || activeContent.window !== event.source) {
+                    // reset active Content
 
-                        if (activeContent) {
-                            activeContent.window.postMessage({
-                                action: 'deactivated',
-                                direct: true,
-                                reason: `${_message.action}@${event.timeStamp}`,
-                                commandToContent: true
-                            }, activeContent.origin);
-                        }
-
-                        activeContent = {
-                            window: event.source,
-                            origin: _message.origin
-                        };
-                        // update usage for user defined mappings.
+                    if (activeContent) {
                         activeContent.window.postMessage({
-                            action: 'activated',
+                            action: 'deactivated',
                             direct: true,
                             reason: `${_message.action}@${event.timeStamp}`,
                             commandToContent: true
                         }, activeContent.origin);
                     }
+
+                    activeContent = {
+                        window: event.source,
+                        origin: _message.origin
+                    };
+
+                    activeContent.window.postMessage({
+                        action: 'activated',
+                        direct: true,
+                        reason: `${_message.action}@${event.timeStamp}`,
+                        commandToContent: true
+                    }, activeContent.origin);
                 }
+            }
+            if (_message.action === "visualUpdatedForFirefox") {
+                document.activeElement.blur();
             }
         } else if (_message.action && _actions.hasOwnProperty(_message.action)) {
             _actions[_message.action](_message);
@@ -104,15 +105,44 @@ if (window === top) {
         }
     }, true);
 
-    document.addEventListener('DOMContentLoaded', function(e) {
+    document.addEventListener('DOMContentLoaded', function (e) {
 
         runtime.command({
             action: 'tabURLAccessed',
             title: document.title,
             url: window.location.href
+        }, function (resp) {
+            if (resp.index > 0) {
+                var showTabIndexInTitle = function () {
+                    skipObserver = true;
+                    document.title = myTabIndex + " " + originalTitle;
+                };
+
+                var myTabIndex = resp.index,
+                    skipObserver = false,
+                    originalTitle = document.title;
+
+                new MutationObserver(function (mutationsList) {
+                    if (skipObserver) {
+                        skipObserver = false;
+                    } else {
+                        originalTitle = document.title;
+                        showTabIndexInTitle();
+                    }
+                }).observe(document.querySelector("title"), { childList: true });;
+
+                showTabIndexInTitle();
+
+                runtime.runtime_handlers['tabIndexChange'] = function(msg, sender, response) {
+                    if (msg.index !== myTabIndex) {
+                        myTabIndex = msg.index;
+                        showTabIndexInTitle();
+                    }
+                };
+            }
         });
 
-        setTimeout(function() {
+        setTimeout(function () {
             // to avoid conflict with pdf extension: chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/
             for (var p in AutoCommands) {
                 var c = AutoCommands[p];
@@ -129,12 +159,4 @@ if (window === top) {
             document.scrollingElement.scrollTop = y;
         });
     }
-
-    document.addEventListener("surfingkeys:frontendReady", function (evt) {
-        runtime.command({
-            action: 'executeScript',
-            file: "/pages/default.js"
-        }, function (response) {
-        });
-    });
 }

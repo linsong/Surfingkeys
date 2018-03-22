@@ -40,7 +40,6 @@ Surfingkeys works for Firefox(above 57) since 0.9.15, with below features as exc
 * [Mermaid diagram generator](#mermaid-diagram-generator)
 * [PDF viewer](#pdf-viewer)
 * [Edit your own settings](#edit-your-own-settings)
-* [Build](#build)
 * [License](#license)
 
 ## Feature list
@@ -198,8 +197,6 @@ In omnibar opened with `b`:
 
 ![search_engine](https://cloud.githubusercontent.com/assets/288207/17644214/759ef1d4-61b3-11e6-9bd9-70c38c8b80e0.gif)
 
-To create new map keys for Omnibar using `cmapkey`.
-
 `cmap` could be used for Omnibar to change mappings, for example:
 
     cmap('<Ctrl-n>', '<Tab>');
@@ -255,22 +252,7 @@ The tabs are displayed in MRU order by default, either in omnibar or overlay. If
 
 ## Commands
 
-`:` to open omnibar for commands, then you can execute any pre-defined or customized command there. The result will be displayed below the omnibar. To create your own command as below:
-
-    command('<command_name>', '<help message for this command>', function() {
-        // to do
-    });
-
-For example,
-
-    command('setProxyMode', 'setProxyMode <always|direct|byhost|system|clear>', function(args) {
-        // args is an array of arguments
-        RUNTIME('updateProxy', {
-            mode: args[0]
-        });
-        // return true to close Omnibar for Commands, false to keep Omnibar on
-        return true;
-    });
+`:` to open omnibar for commands, then you can execute any pre-defined there. The result will be displayed below the omnibar.
 
     // create shortcuts for the command with different parameters
     map('spa', ':setProxyMode always');
@@ -508,8 +490,6 @@ mapkey in visual mode and omnibar bar.
 
     vmapkey(keystroke, help_string, action_code, [options])
 
-    cmapkey(keystroke, help_string, action_code, [options])
-
 ### map a keystroke to another
 
     map(new_keystroke, old_keystroke, [domain_pattern], [new_annotation])
@@ -675,13 +655,6 @@ For example,
             font-size: 20pt;
         }
     }`;
-
-## Build
-
-    npm install
-    npm run build
-
-    npm run build firefox # build webextension for firefox
 
 ## API Documentation
 
