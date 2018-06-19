@@ -9,8 +9,8 @@ function getDocumentOrigin() {
     // Lastly, posting a message to a page at a file: URL currently requires that the targetOrigin argument be "*".
     // file:// cannot be used as a security restriction; this restriction may be modified in the future.
     // Firefox provides window.origin instead of document.origin.
-    var origin = document.origin ? document.origin : (window.origin ? window.origin : "*");
-    if (origin === "null") {
+    var origin = window.location.origin ? window.location.origin : "*";
+    if (origin === "file://" || origin === "null") {
         origin = "*";
     }
     return origin;
@@ -18,6 +18,42 @@ function getDocumentOrigin() {
 
 function generateQuickGuid() {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+function listElements(root, whatToShow, filter) {
+    const elms = [];
+    let currentNode;
+    const nodeIterator = document.createNodeIterator(
+        root,
+        whatToShow,
+        null
+    );
+
+    while (currentNode = nodeIterator.nextNode()) {
+        filter(currentNode) && elms.push(currentNode);
+
+        if (currentNode.shadowRoot) {
+            elms.push(...listElements(currentNode.shadowRoot, whatToShow, filter));
+        }
+    }
+
+    return elms;
+}
+
+function isElementVisible(elm) {
+    return elm.offsetHeight > 0 && elm.offsetWidth > 0;
+}
+
+function isElementClickable(e) {
+    var cssSelector = "a, button, select, input, textarea, *[onclick], *[contenteditable=true], *.jfk-button, *.goog-flat-menu-button, *[role]";
+    if (runtime.conf.clickableSelector.length) {
+        cssSelector += ", " + runtime.conf.clickableSelector;
+    }
+
+    return e.matches(cssSelector)
+        || getComputedStyle(e).cursor === "pointer"
+        || getComputedStyle(e).cursor.substr(0, 4) === "url("
+        || e.closest("a, *[onclick], *[contenteditable=true], *.jfk-button, *.goog-flat-menu-button") !== null;
 }
 
 function getRealEdit(event) {
@@ -88,8 +124,8 @@ function isElementPartiallyInViewport(el, ignoreSize) {
     var windowWidth = (window.innerWidth || document.documentElement.clientWidth);
 
     return (ignoreSize || (rect.width > 4 && rect.height > 4))
-        && (rect.top <= windowHeight) && (rect.bottom >= 0)
-        && (rect.left <= windowWidth) && (rect.right >= 0);
+        && (rect.top < windowHeight) && (rect.bottom > 0)
+        && (rect.left < windowWidth) && (rect.right > 0);
 }
 
 function getVisibleElements(filter) {
@@ -156,7 +192,7 @@ function filterOverlapElements(elements) {
         var be = e.getBoundingClientRect();
         if (e.disabled || e.readOnly || be.width <= 4) {
             return false;
-        } else if (["input", "textarea", "select"].indexOf(e.localName) !== -1) {
+        } else if (e.matches("input, textarea, select, form") || e.contentEditable === "true") {
             return true;
         } else {
             var el = document.elementFromPoint(be.left + be.width / 2, be.top + 3);
@@ -186,8 +222,11 @@ function getTextNodes(root, pattern, flag) {
         root,
         NodeFilter.SHOW_TEXT, {
             acceptNode: function(node) {
-                if (!node.data.trim() || !node.parentNode.offsetParent || skip_tags.indexOf(node.parentNode.localName.toLowerCase()) !== -1 || !pattern.test(node.data))
+                if (!node.data.trim() || !node.parentNode.offsetParent || skip_tags.indexOf(node.parentNode.localName.toLowerCase()) !== -1 || !pattern.test(node.data)) {
+                    // node changed, reset pattern.lastIndex
+                    pattern.lastIndex = 0;
                     return NodeFilter.FILTER_REJECT;
+                }
                 var br = node.parentNode.getBoundingClientRect();
                 if (br.width < 4 || br.height < 4) {
                     return NodeFilter.FILTER_REJECT;
@@ -264,7 +303,7 @@ function _map(mode, nks, oks) {
         nks = KeyboardUtils.encodeKeystroke(nks);
         mode.mappings.remove(nks);
         // meta.word need to be new
-        var meta = $.extend({}, old_map.meta);
+        var meta = Object.assign({}, old_map.meta);
         mode.mappings.add(nks, meta);
     }
     return old_map;
@@ -313,10 +352,10 @@ function tabOpenLink(str, simultaneousness) {
     var urls;
     if (str.constructor.name === "Array") {
         urls = str;
-    } else if (str instanceof $) {
-        urls = str.map(function() {
-            return this.href;
-        }).toArray();
+    } else if (str instanceof NodeList) {
+        urls = Array.from(str).map(function(n) {
+            return n.href;
+        });
     } else {
         urls = str.trim().split('\n');
     }
@@ -342,3 +381,80 @@ function tabOpenLink(str, simultaneousness) {
         });
     }
 }
+////////////////////////////////////////////////////////////////////////////////
+
+function getElements(selectorString) {
+    return listElements(document.body, NodeFilter.SHOW_ELEMENT, function(n) {
+        return n.offsetHeight && n.offsetWidth && n.matches(selectorString);
+    });
+}
+
+function getClickableElements(selectorString, pattern) {
+    var nodes = listElements(document.body, NodeFilter.SHOW_ELEMENT, function(n) {
+        return n.offsetHeight && n.offsetWidth
+            && (n.matches(selectorString) || getComputedStyle(n).cursor === "pointer")
+            && (!pattern || pattern.test(n.textContent));
+    });
+    return filterOverlapElements(nodes);
+}
+
+function filterInvisibleElements(nodes) {
+    return nodes.filter(function(n) {
+        return n.offsetHeight && n.offsetWidth
+            && !n.getAttribute('disabled') && isElementPartiallyInViewport(n);
+    });
+}
+
+function setInnerHTML(elm, str) {
+    elm.innerHTML = str;
+}
+
+function createElement(str) {
+    var div = document.createElement('div');
+    setInnerHTML(div, str);
+
+    return div.firstChild;
+}
+
+function hasScroll(el, direction, barSize) {
+    var offset = (direction === 'y') ? ['scrollTop', 'height'] : ['scrollLeft', 'width'];
+    var result = el[offset[0]];
+
+    if (result < barSize) {
+        // set scroll offset to barSize, and verify if we can get scroll offset as barSize
+        var originOffset = el[offset[0]];
+        el[offset[0]] = el.getBoundingClientRect()[offset[1]];
+        result = el[offset[0]];
+        el[offset[0]] = originOffset;
+    }
+    return result >= barSize;
+}
+
+function isEmptyObject(obj) {
+    for (var name in obj) {
+        return false;
+    }
+    return true;
+}
+
+var _divForHtmlEncoder = createElement("<div>");
+function htmlEncode(str) {
+    _divForHtmlEncoder.innerText = str;
+    return _divForHtmlEncoder.innerHTML;
+}
+
+HTMLElement.prototype.one = function (evt, handler) {
+    function _onceHandler() {
+        handler.call(this);
+        this.removeEventListener(evt, _onceHandler);
+    }
+    this.addEventListener(evt, _onceHandler);
+};
+
+HTMLElement.prototype.show = function () {
+    this.style.display = "";
+};
+
+HTMLElement.prototype.hide = function () {
+    this.style.display = "none";
+};

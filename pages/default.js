@@ -109,7 +109,7 @@ mapkey('zo', '#3zoom out', function() {
 map('ZQ', ':quit');
 mapkey(".", '#0Repeat last action', Normal.repeatLast, {repeatIgnore: true});
 mapkey("sql", '#0Show last action', function() {
-    Front.showPopup($.htmlEncode(runtime.conf.lastKeys.map(function(k) {
+    Front.showPopup(htmlEncode(runtime.conf.lastKeys.map(function(k) {
         return KeyboardUtils.decodeKeystroke(k);
     }).join(' → ')));
 }, {repeatIgnore: true});
@@ -159,24 +159,30 @@ mapkey('yma', '#7Copy multiple link URLs to the clipboard', function() {
         Clipboard.write(linksToYank.join('\n'));
     }, {multipleHits: true});
 });
+function getTableColumnHeads() {
+    var tds = [];
+    document.querySelectorAll("table").forEach(function(t) {
+        var tr = t.querySelector("tr");
+        if (tr) {
+            tds.push(...tr.children);
+        }
+    });
+    return tds;
+}
 mapkey('yc', '#7Copy a column of a table', function() {
-    Hints.create($("table").find('tr:first').find('>*'), function(element) {
-        var column = $(element).closest('table')
-            .find('tr').find(`>*:nth(${$(element).index()})`)
-            .toArray().map(function(t) {
-                return t.innerText;
-            }).join("\n");
-        Clipboard.write(column);
+    Hints.create(getTableColumnHeads(), function(element) {
+        var column = Array.from(element.closest("table").querySelectorAll("tr")).map(function(tr) {
+            return tr.children.length > element.cellIndex ? tr.children[element.cellIndex].innerText : "";
+        });
+        Clipboard.write(column.join("\n"));
     });
 });
 mapkey('ymc', '#7Copy multiple columns of a table', function() {
     var rows = null;
-    Hints.create($("table").find('tr:first').find('>*'), function(element) {
-        var column = $(element).closest('table')
-            .find('tr').find(`>*:nth(${$(element).index()})`)
-            .toArray().map(function(t) {
-                return t.innerText;
-            });
+    Hints.create(getTableColumnHeads(), function(element) {
+        var column = Array.from(element.closest("table").querySelectorAll("tr")).map(function(tr) {
+            return tr.children.length > element.cellIndex ? tr.children[element.cellIndex].innerText : "";
+        });
         if (!rows) {
             rows = column;
         } else {
@@ -193,19 +199,19 @@ mapkey('yq', '#7Copy pre text', function() {
     });
 });
 mapkey('i', '#1Go to edit box', function() {
-    Hints.create("input:visible, textarea:visible, *[contenteditable=true], select:visible", Hints.dispatchMouseClick);
+    Hints.create("input, textarea, *[contenteditable=true], select", Hints.dispatchMouseClick);
 });
 mapkey('gi', '#1Go to the first edit box', function() {
     Hints.createInputLayer();
 });
 mapkey('I', '#1Go to edit box with vim editor', function() {
-    Hints.create("input:visible, textarea:visible, *[contenteditable=true], select:visible", function(element) {
+    Hints.create("input, textarea, *[contenteditable=true], select", function(element) {
         Front.showEditor(element);
     });
 });
 mapkey('O', '#1Open detected links from text', function() {
     Hints.create(runtime.conf.clickablePat, function(element) {
-        $(`<a href=${element[2]}>`)[0].click();
+        createElement(`<a href=${element[2]}>`).click();
     }, {statusLine: "Open detected links from text"});
 });
 mapkey(';s', 'Toggle PDF viewer from SurfingKeys', function() {
@@ -216,7 +222,7 @@ mapkey(';s', 'Toggle PDF viewer from SurfingKeys', function() {
             window.location.replace(pdfUrl);
         });
     } else {
-        if ($("EMBED").attr("type") === "application/pdf") {
+        if (document.querySelector("EMBED") && document.querySelector("EMBED").getAttribute("type") === "application/pdf") {
             chrome.storage.local.remove("noPdfViewer", function() {
                 window.location.replace(pdfUrl);
             });
@@ -291,39 +297,8 @@ mapkey('ox', '#8Open recently closed URL', function() {
 mapkey('H', '#8Open opened URL in current tab', function() {
     Front.openOmnibar({type: "URLs", extra: "getTabURLs"});
 });
-function renderShanbay(res) {
-    var exp = res.msg;
-    if (res.data.definition) {
-        var tmp = [];
-        for (var reg in res.data.pronunciations) {
-            tmp.push('<div>[{0}] {1}</div>'.format(reg, res.data.pronunciations[reg]));
-            tmp.push('<div><audio src="{0}" controls></audio></div>'.format(res.data[reg+'_audio']));
-        }
-        tmp.push('<div>{0}</div>'.format(res.data.definition));
-        exp = '<div>{0}</div>'.format(tmp.join('\n'));
-    }
-    return exp;
-}
 mapkey('Q', '#8Open omnibar for word translation', function() {
-    Front.openOmniquery({
-        url: "https://api.shanbay.com/bdc/search/?word=",
-        /*
-         * or
-        url: function(q) {
-            return "https://api.shanbay.com/bdc/search/?word=" + q
-        },
-        */
-        query: Visual.getWordUnderCursor(),
-        style: "opacity: 0.8;",
-        parseResult: function(res) {
-            var res = JSON.parse(res.text);
-            return [ renderShanbay(res) ];
-        }
-    });
-});
-Visual.setTranslationService("https://api.shanbay.com/bdc/search/?word=", function(res) {
-    var res = JSON.parse(res.text);
-    return renderShanbay(res);
+    Front.openOmniquery({query: Visual.getWordUnderCursor(), style: "opacity: 0.8;"});
 });
 mapkey('b', '#8Open a bookmark', function() {
     Front.openOmnibar(({type: "Bookmarks"}));
@@ -354,7 +329,7 @@ mapkey('ymv', '#7Yank text of multiple elements', function() {
     Visual.toggle("ym");
 });
 mapkey('yi', '#7Yank text of an input', function() {
-    Hints.create("input:visible, textarea:visible, select:visible", function(element) {
+    Hints.create("input, textarea, select", function(element) {
         Clipboard.write(element.value);
     });
 });
@@ -421,6 +396,13 @@ mapkey('yj', "#7Copy current settings", function() {
         Clipboard.write(JSON.stringify(response.settings, null, 4));
     });
 });
+mapkey(';pj', "#7Restore settings data from clipboard", function() {
+    Clipboard.read(function(response) {
+        RUNTIME('updateSettings', {
+            settings: JSON.parse(response.data.trim())
+        });
+    });
+});
 mapkey('yd', "#7Copy current downloading URL", function() {
     runtime.command({
         action: 'getDownloads',
@@ -443,8 +425,8 @@ mapkey('yl', "#7Copy current page's title", function() {
 });
 mapkey('yf', '#7Copy form data in JSON on current page', function() {
     var fd = {};
-    $('form').each(function() {
-        fd[(this.method || "get") + "::" + this.action] = getFormData(this, "json");
+    document.querySelectorAll('form').forEach(function(form) {
+        fd[(form.method || "get") + "::" + form.action] = getFormData(form, "json");
     });
     Clipboard.write(JSON.stringify(fd, null, 4));
 });
@@ -455,7 +437,7 @@ mapkey(';pf', '#7Fill form with data from yf', function() {
             var forms = JSON.parse(response.data.trim());
             if (forms.hasOwnProperty(formKey)) {
                 var fd = forms[formKey];
-                $(element).find('input[type=text]:visible').toArray().forEach(function(ip) {
+                element.querySelectorAll('input[type=text]').forEach(function(ip) {
                     if (fd.hasOwnProperty(ip.name)) {
                         ip.value = fd[ip.name];
                     }
@@ -479,9 +461,9 @@ mapkey('yg', '#7Capture current page', function() {
 });
 mapkey('yp', '#7Copy form data for POST on current page', function() {
     var aa = [];
-    $('form').each(function() {
+    document.querySelectorAll('form').forEach(function(form) {
         var fd = {};
-        fd[(this.method || "get") + "::" + this.action] = getFormData(this);
+        fd[(form.method || "get") + "::" + form.action] = getFormData(form);
         aa.push(fd);
     });
     Clipboard.write(JSON.stringify(aa, null, 4));
@@ -494,6 +476,9 @@ mapkey('og', '#8Open Search with alias g', function() {
 });
 mapkey('ow', '#8Open Search with alias w', function() {
     Front.openOmnibar({type: "SearchEngine", extra: "w"});
+});
+mapkey('oy', '#8Open Search with alias y', function() {
+    Front.openOmnibar({type: "SearchEngine", extra: "y"});
 });
 if (window.navigator.userAgent.indexOf("Firefox") > 0) {
     mapkey('on', '#3Open Firefox newtab', function() {
@@ -592,7 +577,7 @@ mapkey(';j', '#12Close Downloads Shelf', function() {
 });
 mapkey(';pp', '#7Paste html on current page', function() {
     Clipboard.read(function(response) {
-        document.body.innerHTML = response.data;
+        setInnerHTML(document.body, response.data);
     });
 });
 mapkey(';q', '#14Insert jquery library on current page', function() {
@@ -630,5 +615,10 @@ addSearchAliasX('w', 'bing', 'http://global.bing.com/search?setmkt=en-us&setlang
 });
 addSearchAliasX('s', 'stackoverflow', 'http://stackoverflow.com/search?q=');
 addSearchAliasX('h', 'github', 'https://github.com/search?type=Code&utf8=%E2%9C%93&q=');
+addSearchAliasX('y', 'youtube', 'https://www.youtube.com/results?search_query=', 's',
+'http://suggestqueries.google.com/complete/search?client=youtube&ds=yt&client=chrome-ext&q=', function(response) {
+    var res = JSON.parse(response.text);
+    return res[1];
+});
 
 document.dispatchEvent(new CustomEvent('surfingkeys:defaultSettingsLoaded'));

@@ -344,10 +344,11 @@ To avoid manually editing PAC script and reloading/switching profile by clicking
         setProxy 192.168.1.100:8080
         setProxy 127.0.0.1:1080 SOCKS5
 
-* setProxyMode, to set proxy mode, there are five modes: direct, byhost, always, system and clear.
+* setProxyMode, to set proxy mode, there are five modes: direct, byhost, bypass, always, system and clear.
 
         direct      Chrome will connect to all sites directly.
         byhost      Chrome will only connect to sites added by `addProxySite` through proxy.
+        bypass      Chrome will connect to all sites through proxy, with specified hosts excluded.
         always      Chrome will connect to all sites through proxy.
         system      Use proxy configuration taken from the operating system.
         clear       Surfingkeys will not take control of proxy settings, this is the default mode.
@@ -647,6 +648,7 @@ For example,
 | settings.theme | undefined | To change css of the Surfingkeys UI elements. |
 | settings.caseSensitive | false | Whether finding in page is case sensitive. |
 | settings.cursorAtEndOfInput | true | Whether to put cursor at end of input when entering an input box, by false to put the cursor where it was when focus was removed from the input. |
+| settings.digitForRepeat | true | Whether digits are reserved for repeats, by false to enable mapping of numeric keys. |
 
 ### Example of settings.theme, below is to set font size of status bar
 
@@ -665,8 +667,8 @@ For example,
 
 ## Credits
 
-* [jQuery](https://github.com/jquery/jquery), for clean coding.
-* [TRIE](https://github.com/mikedeboer/trie), finally replaced by my own simple implementation for less memory usage and better performance.
+* ~~[jQuery](https://github.com/jquery/jquery)~~, removed for less memory usage and better performance.
+* ~~[TRIE](https://github.com/mikedeboer/trie)~~, finally replaced by my own simple implementation for less memory usage and better performance.
 * [ACE vim editor](https://github.com/ajaxorg/ace), for vim editor.
 * [markdown parser](https://github.com/chjj/marked), for markdown parser.
 * [pdf.js](https://github.com/mozilla/pdf.js), for pdf viewer.

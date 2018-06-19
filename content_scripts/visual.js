@@ -1,9 +1,5 @@
-var Visual = (function(mode) {
-    var self = $.extend({
-        name: "Visual",
-        eventListeners: {},
-        statusLine: "Visual"
-    }, mode);
+var Visual = (function() {
+    var self = new Mode("Visual");
 
     self.addEventListener('keydown', function(event) {
         if (visualf) {
@@ -241,8 +237,9 @@ var Visual = (function(mode) {
         annotation: "make cursor at center of window.",
         feature_group: 9,
         code: function() {
+            var offset = cursor.getBoundingClientRect().top - window.innerHeight/2;
             self.hideCursor();
-            document.scrollingElement.scrollTop += cursor.getBoundingClientRect().top - window.innerHeight/2;
+            document.scrollingElement.scrollTop += offset;
             self.showCursor();
         }
     });
@@ -288,11 +285,14 @@ var Visual = (function(mode) {
         code: function() {
             var w = Visual.getWordUnderCursor();
             readText(w);
-            httpRequest({
-                url: _translationUrl + w
-            }, function(res) {
-                var pos = Visual.getCursorPos();
-                Front.showBubble(pos, _parseTranslation(res));
+            Front.performInlineQuery(w, function(queryResult) {
+                var br = cursor.getBoundingClientRect();
+                Front.showBubble({
+                    left: br.left,
+                    top: br.top,
+                    height: br.height,
+                    width: br.width
+                }, queryResult, true);
             });
         }
     });
@@ -309,12 +309,6 @@ var Visual = (function(mode) {
         }
     });
 
-    var _translationUrl, _parseTranslation;
-    self.setTranslationService = function(url, cb) {
-        _translationUrl = url;
-        _parseTranslation = cb;
-    };
-
     var selection = document.getSelection(),
         matches = [],
         currentOccurrence,
@@ -323,7 +317,7 @@ var Visual = (function(mode) {
         mark_template = document.createElement("surfingkeys_mark"),
         cursor = document.createElement("div");
     cursor.className = "surfingkeys_cursor";
-    cursor.style.zIndex = 2147483001;
+    cursor.style.zIndex = 2147483298;
 
     // f in visual mode
     var visualf = 0, lastF = null;
@@ -359,7 +353,8 @@ var Visual = (function(mode) {
         var node = null;
         var treeWalker = getTextNodes(document.body, /./, 0);
         while (treeWalker.nextNode()) {
-            if ($(treeWalker.currentNode.parentNode).offset().top > (document.scrollingElement.scrollTop + window.innerHeight * y)) {
+            var br = treeWalker.currentNode.parentNode.getBoundingClientRect();
+            if (br.top > window.innerHeight * y) {
                 node = treeWalker.currentNode;
                 break;
             }
@@ -407,18 +402,35 @@ var Visual = (function(mode) {
     };
 
     var _focusedRange = document.createRange();
+    function getTextRect() {
+        _focusedRange.setStart(arguments[0], arguments[1]);
+        if (arguments.length > 3) {
+            _focusedRange.setEnd(arguments[2], arguments[3]);
+        } else {
+            _focusedRange.setEnd(arguments[0], arguments[1]);
+        }
+        return _focusedRange.getBoundingClientRect();
+    }
+
     self.showCursor = function () {
-        if (selection.focusNode && ($(selection.focusNode).is(':visible') || $(selection.focusNode.parentNode).is(':visible'))) {
+        if (selection.focusNode && (selection.focusNode.offsetHeight > 0 || selection.focusNode.parentNode.offsetHeight > 0)) {
             // https://developer.mozilla.org/en-US/docs/Web/API/Selection
             // If focusNode is a text node, this is the number of characters within focusNode preceding the focus. If focusNode is an element, this is the number of child nodes of the focusNode preceding the focus.
-            _focusedRange.setStart(selection.focusNode, selection.focusOffset);
-            _focusedRange.setEnd(selection.focusNode, selection.focusOffset);
             scrollIntoViewIfNeeded(selection.focusNode.parentElement, true);
 
-            var r = _focusedRange.getBoundingClientRect();
+            var r = getTextRect(selection.focusNode, selection.focusOffset);
             cursor.style.position = "fixed";
             cursor.style.left = r.left + 'px';
-            if (r.top > 0) {
+            if (r.left < 0 || r.left >= window.innerWidth) {
+                document.scrollingElement.scrollLeft += r.left - window.innerWidth / 2;
+                cursor.style.left = window.innerWidth / 2 + 'px';
+            } else {
+                cursor.style.left = r.left + 'px';
+            }
+            if (r.top < 0 || r.top >= window.innerHeight) {
+                document.scrollingElement.scrollTop += r.top - window.innerHeight / 2;
+                cursor.style.top = window.innerHeight / 2 + 'px';
+            } else {
                 cursor.style.top = r.top + 'px';
             }
             cursor.style.height = r.height + 'px';
@@ -430,7 +442,6 @@ var Visual = (function(mode) {
     self.getCursorPixelPos = function () {
         return cursor.getBoundingClientRect();
     };
-
 
     function select(found) {
         self.hideCursor();
@@ -457,15 +468,11 @@ var Visual = (function(mode) {
 
     var holder = document.createElement("div");
     function createMatchMark(node1, offset1, node2, offset2) {
-        _focusedRange.setStart(node1, offset1);
-        _focusedRange.setEnd(node2, offset2);
-        var r = _focusedRange.getBoundingClientRect();
+        var r = getTextRect(node1, offset1, node2, offset2);
         if (r.width > 0 && r.height > 0) {
-            matches.push([node1, offset1]);
-
             var mark = mark_template.cloneNode(false);
             mark.style.position = "absolute";
-            mark.style.zIndex = 2147483000;
+            mark.style.zIndex = 2147483298;
             mark.style.left = document.scrollingElement.scrollLeft + r.left + 'px';
             mark.style.top = document.scrollingElement.scrollTop + r.top + 'px';
             mark.style.width = r.width + 'px';
@@ -474,6 +481,8 @@ var Visual = (function(mode) {
             if (!document.body.contains(holder)) {
                 document.body.appendChild(holder);
             }
+
+            matches.push([node1, offset1, mark]);
         }
     }
 
@@ -509,7 +518,11 @@ var Visual = (function(mode) {
     self.visualClear = function() {
         self.hideCursor();
         matches = [];
-        holder.innerHTML = "";
+        registeredScrollNodes.forEach(function(n) {
+            n.onscroll = null;
+        });
+        registeredScrollNodes = [];
+        setInnerHTML(holder, "");
         holder.remove();
         Front.showStatus(2, '');
     };
@@ -518,17 +531,15 @@ var Visual = (function(mode) {
         Front.hideBubble();
     }
 
-    self.enter = function() {
-        mode.enter.apply(self, arguments);
+    self.onEnter = function() {
         document.addEventListener('surfingkeys:cursorHidden', onCursorHiden);
         _incState();
     };
 
     var _lastPos = null;
-    self.exit = function() {
+    self.onExit = function() {
         document.removeEventListener('surfingkeys:cursorHidden', onCursorHiden);
         _lastPos = [selection.anchorNode, selection.anchorOffset];
-        mode.exit.apply(self, arguments);
     };
 
     function _onStateChange() {
@@ -604,24 +615,11 @@ var Visual = (function(mode) {
 
     self.getWordUnderCursor = function() {
         var word = selection.toString();
-        if (word.length === 0 && selection.focusNode && selection.focusNode.parentElement) {
-            var pe = selection.focusNode.parentElement;
-            if (pe.tagName === "SURFINGKEYS_MARK") {
-                pe = pe.parentElement;
-            }
-            word = getNearestWord(pe.innerText, selection.focusOffset);
+        if (word.length === 0 && selection.focusNode) {
+            var pe = selection.focusNode;
+            word = getNearestWord(pe.textContent, selection.focusOffset);
         }
         return word;
-    };
-
-    self.getCursorPos = function() {
-        var br = cursor.getBoundingClientRect();
-        return {
-            left: br.left,
-            top: br.top,
-            height: br.height,
-            width: br.width
-        };
     };
 
     self.next = function(backward) {
@@ -704,6 +702,7 @@ var Visual = (function(mode) {
         highlight(new RegExp(query, "g" + (runtime.conf.caseSensitive ? "" : "i")));
     };
 
+    var registeredScrollNodes = [];
     self.visualEnter = function (query) {
         self.visualClear();
         highlight(new RegExp(query, "g" + (runtime.conf.caseSensitive ? "" : "i")));
@@ -713,6 +712,18 @@ var Visual = (function(mode) {
         } else {
             Front.showStatus(2, "Pattern not found: {0}".format(query), 1000);
         }
+        Normal.getScrollableElements().forEach(function(n) {
+            if (n !== document.scrollingElement) {
+                n.onscroll = function() {
+                    matches.forEach(function(m) {
+                        var r = getTextRect(m[0], m[1]);
+                        m[2].style.left = document.scrollingElement.scrollLeft + r.left + 'px';
+                        m[2].style.top = document.scrollingElement.scrollTop + r.top + 'px';
+                    });
+                };
+                registeredScrollNodes.push(n);
+            }
+        });
     };
 
     self.findSentenceOf = function (query) {
@@ -743,4 +754,4 @@ var Visual = (function(mode) {
         mark_template.setAttribute('style', _style.marks || '');
     };
     return self;
-})(Mode);
+})();

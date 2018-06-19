@@ -6,10 +6,10 @@
  * @param {Object} ui
  * @return {StatusBar} StatusBar instance
  */
-var StatusBar = (function(ui) {
+var StatusBar = (function() {
     var self = {};
-
     var timerHide = null;
+    var ui = Front.statusBar;
 
     // mode: 0
     // search: 1
@@ -20,25 +20,31 @@ var StatusBar = (function(ui) {
             clearTimeout(timerHide);
             timerHide = null;
         }
-        var span = ui.find('span');
+        var span = ui.querySelectorAll('span');
         if (n < 0) {
-            span.html("");
+            span.forEach(function(s) {
+                setInnerHTML(s, "");
+            });
         } else {
-            $(span[n]).html("").append(content);
+            setInnerHTML(span[n], content);
         }
         var lastSpan = -1;
         for (var i = 0; i < span.length; i++) {
-            if ($(span[i]).html().length) {
+            if (span[i].innerHTML.length) {
                 lastSpan = i;
-                $(span[i]).css('padding', '0px 8px');
-                $(span[i]).css('border-right', '1px solid #999');
+                span[i].style.padding = "0px 8px";
+                span[i].style.borderRight = "1px solid #999";
             } else {
-                $(span[i]).css('padding', '');
-                $(span[i]).css('border-right', '');
+                span[i].style.padding = "";
+                span[i].style.borderRight = "";
             }
         }
-        $(span[lastSpan]).css('border-right', '');
-        ui.css('display', lastSpan === -1 ? 'none' : 'block');
+        if (lastSpan === -1) {
+            ui.style.display = 'none';
+        } else {
+            span[lastSpan].style.borderRight = "";
+            ui.style.display = 'block';
+        }
         Front.flush();
         if (duration) {
             timerHide = setTimeout(function() {
@@ -47,15 +53,10 @@ var StatusBar = (function(ui) {
         }
     };
     return self;
-})(Front.statusBar);
+})();
 
-var Find = (function(mode) {
-    var self = $.extend({
-        name: "Find",
-        statusLine: "/",
-        frontendOnly: true,
-        eventListeners: {}
-    }, mode);
+var Find = (function() {
+    var self = new Mode("Find", "/");
 
     self.addEventListener('keydown', function(event) {
         // prevent this event to be handled by Surfingkeys' other listeners
@@ -64,10 +65,10 @@ var Find = (function(mode) {
         event.sk_suppressed = true;
     });
 
-    var input = $('<input id="sk_find" class="sk_theme"/>');
+    var input;
     var historyInc;
     function reset() {
-        input.val('');
+        input = null;
         StatusBar.show(1, "");
         self.exit();
     }
@@ -82,13 +83,14 @@ var Find = (function(mode) {
      */
     self.open = function() {
         historyInc = -1;
-        StatusBar.show(1, input);
-        input.on('input', function() {
+        StatusBar.show(1, '<input id="sk_find" class="sk_theme"/>');
+        input = Front.statusBar.querySelector("input");
+        input.oninput = function() {
             Front.visualCommand({
                 action: 'visualUpdate',
-                query: input.val()
+                query: input.value
             });
-        });
+        };
         var findHistory = [];
         runtime.command({
             action: 'getSettings',
@@ -96,14 +98,14 @@ var Find = (function(mode) {
         }, function(response) {
             findHistory = response.settings.findHistory;
         });
-        input[0].onkeydown = function(event) {
+        input.onkeydown = function(event) {
             if (Mode.isSpecialKeyOf("<Esc>", event.sk_keyName)) {
                 reset();
                 Front.visualCommand({
                     action: 'visualClear'
                 });
             } else if (event.keyCode === KeyboardUtils.keyCodes.enter) {
-                var query = input.val();
+                var query = input.value;
                 if (query.length > 0) {
                     if (event.ctrlKey) {
                         query = '\\b' + query + '\\b';
@@ -120,7 +122,7 @@ var Find = (function(mode) {
                     historyInc = (event.keyCode === KeyboardUtils.keyCodes.upArrow) ? (historyInc + 1) : (historyInc + findHistory.length - 1);
                     historyInc = historyInc % findHistory.length;
                     var query = findHistory[historyInc];
-                    input.val(query);
+                    input.value = query;
                     Front.visualCommand({
                         action: 'visualUpdate',
                         query: query
@@ -132,4 +134,4 @@ var Find = (function(mode) {
         self.enter();
     };
     return self;
-})(Mode);
+})();

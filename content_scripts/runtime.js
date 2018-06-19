@@ -23,6 +23,7 @@ var runtime = window.runtime || (function() {
             lastQuery: "",
             modeAfterYank: "",
             nextLinkRegex: /(\b(next)\b)|下页|下一页|>>|»/i,
+            digitForRepeat: true,
             omnibarMaxResults: 10,
             omnibarPosition: "middle",
             omnibarSuggestion: true,
@@ -164,7 +165,7 @@ var runtime = window.runtime || (function() {
         getTopURLPromise.then(function(topUrl) {
             if (window === top) {
                 // Firefox use "resource://pdf.js" as window.origin for pdf viewer
-                topUrl = window.origin;
+                topUrl = window.location.origin;
             }
             if (topUrl === "null" || new URL(topUrl).origin === "file://") {
                 topUrl = "*";
