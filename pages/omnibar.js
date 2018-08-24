@@ -820,7 +820,7 @@ var AddBookmark = (function() {
                 //restore the last used bookmark folder input
                 var lastBookmarkFolder = localStorage.getItem("surfingkeys.lastAddedBookmark");
                 if (lastBookmarkFolder) {
-                  Omnibar.input.val(lastBookmarkFolder);
+                  Omnibar.input.value = lastBookmarkFolder;
 
                   //make the input selected, so if user don't want to use it,
                   //just input to overwrite the previous value
