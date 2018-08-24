@@ -882,12 +882,12 @@ var AddBookmark = (function() {
         }, function(response) {
             Front.showBanner("Bookmark created at {0}.".format(folderName), 3000);
         });
-        localStorage.setItem("surfingkeys.lastAddedBookmark", Omnibar.input.val()); 
+        localStorage.setItem("surfingkeys.lastAddedBookmark", Omnibar.input.value); 
         return true;
     };
 
     self.onInput = function() {
-        var queries = Omnibar.input.val().split(/\s+/);
+        var queries = Omnibar.input.value.split(/\s+/);
         var matches = folders.filter(function(b) {
             if (runtime.conf.caseSensitive)
               return queries.every(function(query) { 
