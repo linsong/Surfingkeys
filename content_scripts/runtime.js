@@ -4,12 +4,14 @@ var runtime = window.runtime || (function() {
             lastKeys: "",
             // local part from settings
             blacklistPattern: undefined,
+            smartCase: true,
             caseSensitive: false,
             clickablePat: /(https?:\/\/|thunder:\/\/|magnet:)\S+/ig,
             clickableSelector: "",
             cursorAtEndOfInput: true,
             defaultSearchEngine: "g",
             defaultVoice: "Daniel",
+            editableBodyCare: true,
             enableAutoFocus: true,
             experiment: false,
             focusFirstCandidate: false,
@@ -37,6 +39,7 @@ var runtime = window.runtime || (function() {
             startToShowEmoji: 2,
             stealFocusOnLoad: true,
             tabsThreshold: 9,
+            textAnchorPat: /(^[\n\r\s]*\S{3,}|\b\S{5,})/g,
             scrollFriction: 0,
             useLocalMarkdownAPI: true,
         },
@@ -111,9 +114,9 @@ var runtime = window.runtime || (function() {
                     action: 'updateSettings',
                     settings: toUpdate
                 });
-            } else if (cmd.length) {
+            } else if (cmd.trim().length && cmd !== ".") {
                 list = list.filter(function(c) {
-                    return c.length && c !== cmd;
+                    return c.trim().length && c !== cmd && c !== ".";
                 });
                 list.unshift(cmd);
                 if (list.length > 50) {
@@ -167,6 +170,9 @@ var runtime = window.runtime || (function() {
         });
     };
 
+    self.getCaseSensitive = function(query) {
+        return self.conf.caseSensitive || (self.conf.smartCase && /[A-Z]/.test(query));
+    };
 
     return self;
 })();

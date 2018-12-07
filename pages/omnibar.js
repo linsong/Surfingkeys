@@ -490,7 +490,10 @@ var Omnibar = (function() {
             var li;
             if (b.hasOwnProperty('html')) {
                 li = self.createItemFromRawHtml(b);
-            } else if (b.hasOwnProperty('url')) {
+            } else if (b.hasOwnProperty('url') && b.url !== undefined) {
+                if (window.navigator.userAgent.indexOf("Firefox") !== -1 && /^(place|data):/i.test(b.url)) {
+                    return null;
+                }
                 li = self.createURLItem(b, rxp);
             } else if (_showFolder) {
                 li = createElement(`<li><div class="title">▷ ${self.highlight(rxp, b.title)}</div></li>`);
@@ -602,7 +605,10 @@ var Omnibar = (function() {
         }
         var ul = createElement("<ul/>");
         items.forEach(function(b) {
-            ul.append(renderItem(b));
+            var li = renderItem(b);
+            if (li) {
+                ul.append(li);
+            }
         });
         self.resultsDiv.append(ul);
         items = self.resultsDiv.querySelectorAll("#sk_omnibarSearchResult>ul>li");
@@ -720,6 +726,9 @@ var OpenBookmarks = (function() {
                     action: 'getBookmarks',
                 }, self.onResponse);
             }
+            if (Omnibar.input.value !== "") {
+                self.onInput();
+            }
         });
     };
 
@@ -766,7 +775,7 @@ var OpenBookmarks = (function() {
         var items = response.bookmarks;
         if (folderOnly) {
             items = items.filter(function(b) {
-                return !b.hasOwnProperty('url');
+                return !b.hasOwnProperty('url') || b.url === undefined;
             });
         }
         Omnibar.listURLs(items, true);
@@ -888,8 +897,9 @@ var AddBookmark = (function() {
 
     self.onInput = function() {
         var queries = Omnibar.input.value.split(/\s+/);
+        var caseSensitive = runtime.getCaseSensitive(Omnibar.input.value);
         var matches = folders.filter(function(b) {
-            if (runtime.conf.caseSensitive)
+            if (caseSensitive)
               return queries.every(function(query) { 
                 return query.length == 0 || b.title.indexOf(query) !== -1; 
               });
