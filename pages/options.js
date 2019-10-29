@@ -152,7 +152,7 @@ function renderProxySettings(rs) {
                     runtime.command({
                         action: 'updateProxy',
                         number: number,
-                        host: elm.querySelector("span").innerText,
+                        host: elm.querySelector("span:nth-child(2)").innerText,
                         operation: 'remove'
                     }, function() {
                         elm.remove();
@@ -220,8 +220,10 @@ var localPathInput = document.getElementById("localPath");
 var sample = document.getElementById("sample").innerHTML;
 function renderSettings(rs) {
     showAdvanced(rs.showAdvanced);
-    localPathInput.value = rs.localPath;
-    localPathSaved = rs.localPath;
+    if (rs.localPath) {
+        localPathInput.value = rs.localPath;
+        localPathSaved = rs.localPath;
+    }
     var h = window.innerHeight / 2;
     mappingsEditor.container.style.height = h + "px";
     defaultMappingsEditor.container.style.height = h + "px";
@@ -317,10 +319,16 @@ function saveSettings() {
     var settingsCode = mappingsEditor.getValue();
     var localPath = getURIPath(localPathInput.value.trim());
     if (localPath.length && localPath !== localPathSaved) {
-        RUNTIME("loadSettingsFromUrl", {
+        runtime.command({
+            action: 'loadSettingsFromUrl',
             url: localPath
+        }, function(res) {
+            Front.showBanner(res.status + ' to load settings from ' + localPath, 300);
+            if (res.snippets && res.snippets.length) {
+                localPathSaved = localPath;
+                mappingsEditor.setValue(res.snippets, -1);
+            }
         });
-        Front.showBanner('Loading settings from ' + localPath, 300);
     } else {
         RUNTIME('updateSettings', {
             settings: {
@@ -334,7 +342,7 @@ function saveSettings() {
 }
 document.getElementById('save_button').onclick = saveSettings;
 
-var basicMappings = ['d', 'R', 'f', 'E', 'e', 'x', 'gg', 'j', '/', 'n', 'r', 'k', 'S', 'C', 'on', 'G', 'v', 'i', 'se', 'og', 'g0', 't', '<Ctrl-6>', 'yy', 'g$', 'D', 'ob', 'X', 'sm', 'sg', 'cf', 'yv', 'yt', 'N', 'l', 'cc', '$', 'yf', 'w', '0', 'yg', 'ow', 'cs', 'b', 'q', 'om', 'ya', 'h', 'gU', 'W', 'B', 'F', ';j'];
+var basicMappings = ['d', 'R', 'f', 'E', 'e', 'x', 'gg', 'j', '/', 'n', 'r', 'k', 'S', 'C', 'on', 'G', 'v', 'i', 'se', 'og', 'g0', 't', '<Ctrl-6>', 'yy', 'g$', 'D', 'ob', 'X', 'sm', 'sg', 'cf', 'yv', 'yt', 'N', 'l', 'cc', '$', 'yf', 'w', '0', 'yg', 'ow', 'cs', 'b', 'om', 'ya', 'h', 'gU', 'W', 'B', 'F', ';j'];
 
 basicMappings = basicMappings.map(function(w, i) {
     return {
@@ -471,7 +479,7 @@ var KeyPicker = (function() {
                     composed: event.composed,
                     key: event.key
                 }, null, 4);
-                reportIssue(`Unrecognized key event: {event.sk_keyName}`, keyStr);
+                reportIssue(`Unrecognized key event: ${event.sk_keyName}`, keyStr);
             } else {
                 _key += KeyboardUtils.decodeKeystroke(event.sk_keyName);
                 showKey();
