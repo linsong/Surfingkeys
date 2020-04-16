@@ -16,8 +16,11 @@ Surfingkeys works for Firefox(above 57) since 0.9.15, with below features as exc
 * Proxy settings
 * Markdown preview
 
+## Installation
 
-[Reference for editing your own settings](#edit-your-own-settings).
+* [Surfingkeys - Chrome Web Store](https://chrome.google.com/webstore/detail/surfingkeys/gfbliohnnapiefjpjlpjnehglfpaknnc)
+* [Surfingkeys – Get this Extension for 🦊 Firefox](https://addons.mozilla.org/en-US/firefox/addon/surfingkeys_ff/)
+* [Surfingkeys - Microsoft Edge Addons](https://microsoftedge.microsoft.com/addons/detail/kgnghhfkloifoabeaobjkgagcecbnppg)
 
 ### TABLE OF CONTENTS
 
@@ -683,6 +686,7 @@ For example,
 | settings.aceKeybindings | "vim" | Set it "emacs" to use emacs keybindings in the ACE editor. |
 | settings.caretViewport | null | Set it in format `[top, left, bottom, right]` to limit hints generation on `v` for entering visual mode, such as `[window.innerHeight / 2 - 10, 0, window.innerHeight / 2 + 10, window.innerWidth]` will make Surfingkeys generate Hints only for text that display on vertically middle of window. |
 | settings.mouseSelectToQuery | [] | All hosts that have enable feature -- mouse selection to query. |
+| settings.autoSpeakOnInlineQuery | false | Whether to automatically speak the query string with TTS on inline query. |
 
 ### Example of settings.theme, below is to set font size of status bar
 
@@ -712,6 +716,11 @@ For example,
 * [pdf.js](https://github.com/mozilla/pdf.js), for pdf viewer.
 * [vimium](https://github.com/philc/vimium), for the days without this extension.
 * [cVim](https://github.com/1995eaton/chromium-vim), for the days without this extension.
+
+## Donate
+Support me with [paypal](https://www.paypal.me/brookhong), or
+
+![donation](https://raw.githubusercontent.com/brookhong/Surfingkeys/master/pages/donation.png)
 
 ## License
 
